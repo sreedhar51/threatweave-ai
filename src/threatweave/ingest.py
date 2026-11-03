@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 from .utils import canonical, digest, numeric
+from .software import classify_family
 
 
 def get(obj, *paths):
@@ -89,7 +90,8 @@ def record_finding(record, kind='vulnerability', source='tenable'):
             'port':port,'protocol':proto,'cves':cves,'status':status,
             'observed_at':get(record,'scan.last_found','scan.last_seen','last_found','last_seen','observed_at'),
             'solution':str(solution) if solution else None,
-            'software_family':get(record,'software_family'),
+            'software_family':(get(record,'software_family')
+                               or (classify_family(record) if kind=='vulnerability' else None)),
             'control_id':str(control_id) if control_id else None,
             'expected_value':get(record,'expected_value','expected'),
             'actual_value':get(record,'actual_value','actual'),
