@@ -101,6 +101,34 @@ class Store:
                 h.update(canonical(tuple(row)).encode())
         return h.hexdigest()
 
+    def input_fingerprints(self):
+        """Stable per-input digests; same columns as snapshot_hash, partitioned by source.
+
+        These hashes track evidence changes, not the correctness of source data.
+        """
+        import hashlib
+        specs = (
+            ('assets', 'assets', ('asset_id','hostname','os','asset_type','environment','role','tags_json','source','raw_hash','last_seen'), 'asset_id', None),
+            ('vulnerabilities', 'findings', ('finding_id','asset_id','kind','source','title','severity','vpr','plugin_id','port','protocol','cves_json','status','observed_at','solution','software_family','control_id','expected_value','actual_value','audit_file','source_hash'), 'finding_id', 'vulnerability'),
+            ('compliance', 'findings', ('finding_id','asset_id','kind','source','title','severity','vpr','plugin_id','port','protocol','cves_json','status','observed_at','solution','software_family','control_id','expected_value','actual_value','audit_file','source_hash'), 'finding_id', 'compliance'),
+            ('cmdb', 'cmdb', ('ci_id','asset_id','verified','business_service','criticality','environment','role','support_group','business_tags_json','internet_exposure','observed_at','source_hash'), 'ci_id', None),
+            ('correlations', 'correlations', ('correlation_id','asset_id','vuln_id','compliance_id','rule_id','rationale'), 'correlation_id', None),
+        )
+        result = {}
+        for label,table,columns,key,kind in specs:
+            h = hashlib.sha256()
+            h.update(label.encode('utf-8'))
+            sql = f"SELECT {','.join(columns)} FROM {table}"
+            args = ()
+            if kind is not None:
+                sql += ' WHERE kind=?'
+                args = (kind,)
+            sql += f' ORDER BY {key}'
+            for row in self.db.execute(sql,args):
+                h.update(canonical(tuple(row)).encode('utf-8'))
+            result[label] = 'sha256:' + h.hexdigest()
+        return result
+
     def overview(self):
         result = {t:self.count(t) for t in ("assets","findings","cmdb","correlations")}
         result["types"] = self.rows("SELECT kind,count(*) AS count FROM findings GROUP BY kind ORDER BY kind")
