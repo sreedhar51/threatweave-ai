@@ -4,7 +4,7 @@ Updated: November 3, 2026. Work-in-progress review branch `review/steps-1-5-evid
 
 ## Verified locally
 
-- **31 automated tests passed**, including the original **18** unmodified tests and 13 new regression tests. Run: `PYTHONPATH=src pytest -q`.
+- **36 automated tests passed**, including the original **18** unmodified tests, the 13 regression tests from changes 6–9, and 5 new Tenable preflight/schema tests. Run: `PYTHONPATH=src pytest -q`.
 - Three-stage demo with unchanged policy returns `evidence_changed: ["compliance", "correlations"]` when CIS evidence is added and `["cmdb"]` when verified CI mapping is added.
 - 5,000-asset synthetic staged run completed in the previous review; no production throughput certification.
 - Family classification covers common Tenable metadata when `software_family` is absent; conservative same-asset vulnerability/CIS links require an explicit mapping rule.
@@ -14,6 +14,15 @@ Updated: November 3, 2026. Work-in-progress review branch `review/steps-1-5-evid
 - Asset-level policy view reuses existing ContextIQ evaluation and preserves the default `get_asset_exposure()` result when no policy is supplied.
 - SQLite overview reports compliance status counts and separate WARNING/ERROR scan-hygiene counts.
 - Streamlit code passes Python syntax compilation, but not an interactive browser test.
+
+## Partner Lab connectivity preflight (November 3, 2026)
+
+- The authorized VM endpoint is `https://cloud.tenable.com`. A separate live connection from this execution environment failed at DNS resolution, **before authentication**. Tenant reachability, credentials, permissions, number of accessible records, and optional compliance evidence remain **unverified**.
+- `scripts/tenant_preflight.py` performs two documented read-only GET requests with *locally injected, rotated credentials*: `/assets` and `/workbenches/vulnerabilities`. It prints only aggregate coverage information and never raw asset identifiers or keys.
+- Optional `--check-compliance` initiates a read-only, asset-filtered compliance export on one visible asset and checks status and aggregate results. Avoid confusing an empty single-asset sample with evidence that the tenant lacks compliance support.
+- Mapping fixes covered current Tenable documented `check_name`, `asset.id`, and list-valued asset hostname fields. Mocked schema tests pass. No live payloads were read.
+- The password and keys shown in a user-provided screenshot must be rotated before use. No credentials were written to source or test fixtures.
+- Instructions: [`docs/TENANT_PREFLIGHT.md`](TENANT_PREFLIGHT.md).
 
 ## Implemented but NOT verified live
 

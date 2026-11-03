@@ -1,218 +1,157 @@
 # ThreatWeave AI
 
-**Correlate vulnerabilities with relevant CIS misconfigurations, apply your organization's own security priorities, and prove why the remediation order changed.**
+**Evidence-qualified exposure correlation · Contextual organizational policy · Reproducible Decision Replay**
 
-Security teams already have vulnerability severity, VPR, compliance findings, and often business context in a CMDB. The difficult question is not simply *what is vulnerable?* It is **which exposures deserve attention first, what evidence connects them, and can we reproduce the decision when policy or context changes?** ThreatWeave AI is a defensive, read-only investigation agent that turns those inputs into explainable, evidence-linked decisions.
+> **CyberAgents Exchange intended category:** Agent (with an internal read-only MCP interface)
+>
+> **Status:** Functional offline prototype. Live Tenable export has been implemented and mock-tested, **not validated against the SWARM tenant**. Optional MCP/Streamlit/Claude/DuckDB integrations require installation and have not been exercised in the packaging environment.
 
-![ThreatWeave AI architecture: source ingestion, validated asset and CIS correlation, policy evaluation, decision receipts, agent and MCP interfaces](docs/architecture-diagram.svg)
+ThreatWeave correlates authorized Tenable vulnerability findings with relevant failed CIS host-audit checks on the **same verified asset**, optionally enriches that asset with ServiceNow CMDB-export business context, applies a human-readable organizational policy, and produces immutable-by-convention Decision Receipts that explain priority changes. The application **does not** infer inter-host connectivity or claim validated attack paths from synthetic IP addresses.
 
-> **CyberAgents Exchange category:** Agent, with internal MCP tools and a deterministic evidence engine.  
-> **Current status:** v0.1 offline functional prototype. The Tenable asynchronous export connector is implemented and mock-tested, **not validated against the competition tenant**. The compliance correlation rules and demo records are **synthetic**. Claude, MCP, Streamlit and DuckDB require optional dependencies and separate runtime validation.
+## The 90-second quick start
 
-## The agent
-
-The ThreatWeave investigator follows a bounded, evidence-first loop:
-
-1. **Gather, read-only.** Import authorized Tenable assets and vulnerability exports through the asynchronous API or CSV/JSON/JSONL files. Optional CIS audit results and ServiceNow CMDB *exports* add configuration and business context.
-2. **Resolve the asset, not the subnet.** Use the Tenable asset UUID as the local asset key. Enrich with a CMDB configuration item only when the import supplies an explicit, verified UUID-to-CI mapping; never merge on hostname or IP alone.
-3. **Correlate relevant weaknesses.** ExposureWeave checks whether a vulnerability and a *relevant* failed CIS control appear on the same asset under an approved correlation rule. Mere co-occurrence does not prove a compounded exposure or attack path.
-4. **Group candidate fixes.** Group findings by normalized Tenable solution text plus software family (or plugin ID when needed). Preserve every source finding ID and affected asset. These are **candidate remediation families**, not verified single-patch bundles.
-5. **Apply organizational policy.** ContextIQ validates restricted YAML rules, retains the original Tenable severity and VPR, and generates separate contextual priority bands. Missing context does not mean low risk.
-6. **Create and replay Decision Receipts.** DecisionTrace fingerprints the dataset and policy and records rankings, triggered rules, contributing evidence and evidence-quality flags. Compare receipts to identify changed priorities and distinguish policy-only from data/context changes.
-7. **Investigate, then let a human decide.** The standalone guided agent works offline. Optional Claude can retrieve small evidence packages, explain changes or draft a **proposed** policy rule; it cannot silently activate the rule, modify Tenable, start scans, patch servers or open tickets.
-
-### What the agent produces
-
-| Output | What it contains |
-| --- | --- |
-| **Compounded-exposure candidates** | Vetted same-asset vulnerability ↔ failed-CIS relationships, evidence IDs, missing prerequisites |
-| **Ranked Fix Groups** | Organizational priority, affected asset counts, original source severity, candidate fixes and relevant flags |
-| **Decision Receipt** | Stable input and policy fingerprints, per-group ranking, triggered rules and source references |
-| **Decision Replay** | Before/after movement, rule contributions and whether the change came from policy, data or both |
-| **Read-only investigation** | A focused explanation of what is supported, what remains uncertain and what to review next |
-
-## Install and try it
-
-**Requirements:** Python 3.11+ and pip. The deterministic demo needs no Tenable credentials or Claude API key.
+Prerequisites: Python 3.11+.
 
 ```bash
-git clone https://github.com/sreedhar51/threatweave-ai.git
-cd threatweave-ai
 python -m pip install -e .
-
-# Load a fully synthetic estate, correlate findings, and write two receipts
+# Run the full offline synthetic demonstration
 threatweave --db runtime/demo.db demo
-
-# Run the read-only guided agent
+# Run the standalone guided investigation agent (no LLM key needed)
 threatweave --db runtime/demo.db investigate
-
-# Show the before-and-after organizational policy decision
+# Read the full baseline/contextual receipt comparison
 threatweave compare runtime/receipts/demo-before.json runtime/receipts/demo-after.json
+# Run tests
+python -m pip install -e '.[dev]'
+pytest -q
 ```
 
-The comparison illustrates a policy-driven priority change while keeping the underlying dataset the same. All demo hostnames, CI records, plugin outputs, and CIS-like identifiers are synthetic—not real customer evidence or licensed CIS benchmark content.
+For a source checkout where installing the package is unavailable:
 
-### Visual dashboard
+```bash
+PYTHONPATH=src python -m threatweave.cli --db runtime/demo.db demo
+PYTHONPATH=src python -m threatweave.cli --db runtime/demo.db investigate
+PYTHONPATH=src pytest -q
+```
+
+All demo hostnames, CVE-like identifiers, CMDB data, and CIS controls are **synthetic** and are not actual Tenable findings or licensed CIS content.
+
+## Dashboard
 
 ```bash
 python -m pip install -e '.[ui]'
 streamlit run dashboard/app.py
 ```
 
-The demo dashboard contains **Fix Groups & Assets**, **Policy & Investigation**, and **Decision Replay**. Select **Load synthetic demo** for an offline walkthrough. An HTML example is also available at [examples/demo-report.html](examples/demo-report.html).
+The UI has three tabs: **Fix Groups & Assets**, **Policy & Investigation**, and **Decision Replay**. Click **Load synthetic demo** to begin. The read-only guided investigation works offline. If you also install the `agent` extra and set `ANTHROPIC_API_KEY`, Claude can investigate bounded evidence or draft policy rules for review.
 
-### Internal read-only MCP tools
+## Internal MCP tools
 
 ```bash
 python -m pip install -e '.[mcp]'
-export THREATWEAVE_DB=runtime/demo.db
-export THREATWEAVE_POLICY=policies/business-context.yaml
-python -m threatweave.mcp_server
+# stdin/stdout are reserved for the MCP protocol
+THREATWEAVE_DB=runtime/demo.db THREATWEAVE_POLICY=policies/business-context.yaml \
+  python -m threatweave.mcp_server
 ```
 
-Available tools: `get_security_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`, `evaluate_policy_dry_run`, and `compare_decision_receipts`. This is a **local stdio MCP server**; validate interoperability with your specific client and installed MCP SDK version before deploying it. It exposes no Tenable write operations.
+Tools: `get_security_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`, `evaluate_policy_dry_run`, `compare_decision_receipts`. **No tools patch assets, modify policies in Tenable, trigger scans, or create tickets.** The MCP Python SDK v2 is the target runtime; v1 import fallback is provided. Verify MCP interoperability on your actual client before submission.
 
-### Optional Claude interpretation
+## Tenable Partner Lab preflight (credential-safe)
+
+The documented VM tenant base URL is `https://cloud.tenable.com`. **Rotate any API credentials previously displayed in screenshots before using them.** Configure newly rotated keys locally through your approved secret manager or environment variables; never commit a populated `.env` file or paste credentials into the repository.
 
 ```bash
-python -m pip install -e '.[agent]'
-export ANTHROPIC_API_KEY='your-key-from-a-secure-environment'
+python scripts/tenant_preflight.py
+# Optional: check CIS coverage on one visible asset with a bounded read-only export
+python scripts/tenant_preflight.py --check-compliance
 ```
 
-Claude is optional and used for bounded evidence interpretation and draft policy authoring. The deterministic engine—not the language model—decides group priorities. Do not use real organizational exports with a third-party model without authorization.
+The preflight summarizes read-only asset and vulnerability-workbench coverage and optionally a scoped compliance export. It prints **no raw hostnames, IP addresses, plugin outputs, or credentials**. Live tenant connectivity could not be validated from this build environment due to blocked DNS/network access. See [the tenant preflight guide](docs/TENANT_PREFLIGHT.md) and [build status](docs/BUILD_STATUS.md).
 
-## Flagship demo — evidence arrives in three stages
-
-ThreatWeave separates **evidence-driven** changes from **policy-driven** changes. The three-stage demonstration uses the **same approved contextual policy** across three independent, synthetic datasets:
+## Import real, authorized exports
 
 ```bash
-# Run with no cloud credentials; records and receipts are synthetic.
-threatweave demo --staged
-
-# Repeat with 5,000 additional deterministic synthetic assets.
-threatweave demo --staged --assets 5000
-```
-
-| Synthetic stage | OpenSSH group on `pay-web-01` | Payment OpenSSL group |
-| --- | --- | --- |
-| Vulnerabilities only | Rank #3 · score 55.53 | Rank #2 · score 55.67 |
-| Add relevant failed CIS control | Rank #2 · score 69.53 | Rank #4 · score 55.67 |
-| Add human-verified CMDB criticality | Rank #1 · score 93.53 | Rank #3 · score 79.67 |
-
-**Expected source attribution:**
-
-```text
-Stage 1 → 2: evidence_changed = ["compliance", "correlations"]
-Stage 2 → 3: evidence_changed = ["cmdb"]
-```
-
-Scores are illustrative **organizational prioritization scores**, not CVSS or Tenable VPR; ranking ties and group changes reflect the synthetic estate. All hostnames, CVEs, CIS-like check identifiers and CMDB records in this example are fictional. These correlations are *candidates*, **not verified network attack paths**.
-
-## On prem — Nessus Manager, Security Center and CMDB
-
-**Nessus XML (implemented and locally tested):** Import an authorized Nessus v2 `.nessus` export directly. This streaming parser rejects `DOCTYPE` / `ENTITY`, separates hosts using UUID (never IP), skips severity-0 informational vulnerability plugins and keeps compliance `ERROR` / `WARNING` separate from failed controls.
-
-```bash
-threatweave --db runtime/onprem.db import nessus ./authorized-scan.nessus
-threatweave --db runtime/onprem.db correlate
-```
-
-**Tenable Security Center (optional, mock-tested only):** The read-only collector makes bounded `POST /rest/analysis` **query** requests using `vulndetails` with offsets, and parses available `cm:compliance-*` metadata. This is a **synchronous** endpoint; validate an authorized tenant and avoid oversized queries.
-
-```bash
-export SC_ACCESS_KEY='...'   # use a secret manager; never commit credentials
-export SC_SECRET_KEY='...'
-threatweave --db runtime/onprem.db securitycenter-export \
-  --url https://your-sc-host.example --page-size 200 --max-pages 5 \
-  --ca-bundle ./your-trusted-ca.pem
-```
-
-Where Security Center does **not** supply a host UUID, ThreatWeave deliberately assigns each record an opaque unresolved ID rather than merging hosts using an IP address.
-
-**ServiceNow CMDB (CSV/JSON only, human gate):** First ingest Tenable assets, then generate review proposals by exact FQDN/hostname. Review and explicitly set `mapping_verified=yes` on approved rows before importing. IP matches are prohibited.
-
-```bash
-threatweave --db runtime/onprem.db cmdb-propose ./servicenow.csv --out ./proposals.csv
-# Human verifies and approves selected mapping_verified cells.
-threatweave --db runtime/onprem.db import cmdb ./proposals.csv --provider servicenow-export
-```
-
-ServiceNow live Table API integration is **not implemented**. See [On-prem integration and caveats](docs/ON_PREM.md) and [connector fields](docs/CONNECTORS.md).
-
-## Bring your own authorized evidence
-
-The same DataBridge imports structured exports without API access:
-
-```bash
-threatweave --db runtime/tenant.db import asset ./assets.json
-threatweave --db runtime/tenant.db import vulnerability ./vulns.jsonl
-threatweave --db runtime/tenant.db import compliance ./cis-compliance.csv
-threatweave --db runtime/tenant.db import cmdb ./servicenow-export.csv --provider servicenow-export
+threatweave --db runtime/tenant.db import asset /path/to/assets.json
+threatweave --db runtime/tenant.db import vulnerability /path/to/vulns.jsonl
+threatweave --db runtime/tenant.db import compliance /path/to/compliance.csv
+threatweave --db runtime/tenant.db import cmdb /path/to/servicenow-cmdb.csv --provider servicenow-export
 threatweave --db runtime/tenant.db correlate
 threatweave --db runtime/tenant.db receipt --policy policies/business-context.yaml --out runtime/receipts/tenant.json
 ```
 
-**CMDB caveat:** Importing ServiceNow *export files* is supported; a live ServiceNow Table API connector is **not yet implemented**. To affect priority, a CMDB row must explicitly map to a known Tenable UUID and declare the mapping verified. See [the connector contract](docs/CONNECTORS.md).
+Supported inputs: JSON arrays, JSON objects, JSONL/NDJSON, and CSV. CSV column mappings are documented in `docs/CONNECTORS.md`.
 
-For a live, authorized Tenable VM tenant, credentials belong in environment variables—not the repository:
+**Live Tenable exports** (use authorized read-only API keys supplied as environment variables):
 
 ```bash
-export TENABLE_ACCESS_KEY='your-access-key'
-export TENABLE_SECRET_KEY='your-secret-key'
+export TENABLE_ACCESS_KEY='...'
+export TENABLE_SECRET_KEY='...'
+# API request bodies can supply documented scope filters. Never commit key material.
 threatweave --db runtime/tenant.db tenable-export asset
-threatweave --db runtime/tenant.db tenable-export vulnerability --body-file ./local-vuln-filters.json
-# Only where the tenant makes compliance export available:
+threatweave --db runtime/tenant.db tenable-export vulnerability --body-file local-vuln-filters.json
+# Optional, only if this tenant includes compliance exports:
 threatweave --db runtime/tenant.db tenable-export compliance
 ```
 
-Tenable exports use asynchronous jobs and chunks. Carefully choose supported export filters and authorized data scope; an omitted vulnerability filter may cause an unintended default time window. The live connector still requires tenant-specific verification.
+Tenable VM exports use asynchronous jobs and download chunks. Assets initiate via `/assets/v2/export` but status/chunks are served under `/assets/export`. Vulnerability and compliance exports use their respective paths. Rate limits, job permissions, export scope, and tenant fields must be confirmed in the competition tenant. If no vulnerability filter is supplied, **Tenable may apply a default time window**: provide a deliberate documented request body for complete scope.
 
-## Why ThreatWeave is different
+## Why this agent differs from a vulnerability dashboard
 
-**It is a security decision-assurance layer—not another vulnerability scanner, attack-path engine or remediation executor.** Its distinct contribution is the combination of *relevant same-asset vulnerability/CIS correlation*, *verifiable business context*, *policy-driven priority changes* and *reproducible Decision Replay*.
+1. **Evidence-qualified correlation:** Only prevalidated `software_family` ↔ `control_id` rules can establish same-asset compounded-exposure hypotheses. Arbitrary CIS FAILs are not automatic risk amplifiers.
+2. **Organizational policy:** Existing Tenable severity/VPR values remain unchanged. A separate local prioritization decision uses approved business policy and evidence.
+3. **Decision Receipts:** A deterministic run records dataset fingerprint, policy fingerprint, ranked candidate fix groups, contributing rule IDs, and source finding IDs. Same inputs yield the same receipt ID.
+4. **Decision Replay:** Compare receipts to attribute changes to policy, data/context, or both. Each explanation can be traced back to a finding ID and source hash.
+5. **Asset-centric view:** Group by Tenable UUID, server/workstation classification, and explicit CMDB context mappings, not random IP subnets.
 
-The original scanner severity and VPR are never overwritten. A receipt's cryptographic hash helps detect changed inputs; it does **not** independently attest the truth of the scanner's findings. Fix Group cardinality is not a validated blast-radius estimate. Cross-host attack paths remain **unverified** without independent reachability and identity evidence.
+**Fix Groups are candidates, not validated one-patch solutions.** The MVP groups by normalized Tenable plugin solution + software family when available, or plugin ID otherwise. Ingesting verified Tenable Solutions mappings is a future capability.
 
-## What's in this repository
+## Trusted evidence boundaries
 
-| Path | Purpose |
-| --- | --- |
-| [`src/threatweave/`](src/threatweave/) | CLI, Tenable connector, normalization, correlation, policy, decision receipts and guided agent |
-| [`src/threatweave/mcp_server.py`](src/threatweave/mcp_server.py) | Read-only MCP tool interface |
-| [`dashboard/app.py`](dashboard/app.py) | Three-tab Streamlit demonstration |
-| [`policies/`](policies/) | Sample organizational and correlation policies |
-| [`examples/`](examples/) | Synthetic fixtures and portable demo report |
-| [`tests/`](tests/) | Regression and evidence-boundary tests |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Detailed system design and scope boundaries |
-| [`docs/CONNECTORS.md`](docs/CONNECTORS.md) | Input and field-mapping contract |
-| [`docs/architecture-diagram.svg`](docs/architecture-diagram.svg) | Editable vector architecture diagram |
-| [`exchange/agent-listing.DRAFT.md`](exchange/agent-listing.DRAFT.md) | Draft submission description; not an Exchange listing yet |
+- Original vendor severity and VPR are preserved; ThreatWeave's scoring bands are illustrative **organizational priorities**, not replacements for CVSS or Tenable VPR.
+- Cross-host attack paths remain **unverified** without independent network, identity, and reachability evidence.
+- A matching CMDB hostname/IP does not establish asset identity. Imported CMDB rows must have a verified mapping to a Tenable asset UUID.
+- Unknown exposure is never automatically considered safe; stale or incomplete observations require review.
+- Hashes detect input differences and help reproduce runs; they do not independently certify that the source findings are correct.
+- The agent treats imported plugin output as untrusted text, and cannot execute operations from it.
 
-## Test and extend
+## Repository map
+
+- `src/threatweave/tenable.py` — asynchronous Tenable VM export connector
+- `src/threatweave/ingest.py` — CSV/JSON normalization, identity and CMDB mapping validation
+- `src/threatweave/correlate.py` — conservative vulnerability/CIS correlation
+- `src/threatweave/policy.py` — restricted, schema-checked policy evaluator
+- `src/threatweave/engine.py` — candidate Fix Groups, Decision Receipts and Replay
+- `src/threatweave/agent.py` — standalone offline investigator + optional Claude reasoning
+- `src/threatweave/mcp_server.py` — optional MCP tool surface
+- `dashboard/app.py` — Streamlit demonstration
+- `src/threatweave/analytics.py` — optional DuckDB and Parquet reporting
+- `policies/` — sample policies and validated correlation rules
+- `tests/` — regression and safety tests
+- `docs/` — architecture, connectors, demo, and submission checklist
+
+## Optional performance analytics
+
+The base application uses SQLite for a portable offline-first MVP. The `analytics` extra supports chunked SQLite-to-Parquet materialization and DuckDB query summaries:
 
 ```bash
-python -m pip install -e '.[dev]'
-pytest -q
+python -m pip install -e '.[analytics]'
 ```
 
-The local packaging regression suite passed **31 tests** locally (including the original 18 tests and 13 added checks); verify the current checkout and GitHub Actions independently. The portable store is SQLite, with an optional DuckDB/Parquet reporting extra (`pip install -e '.[analytics]'`). **No 250,000-asset throughput guarantee is claimed.**
+There is **no claimed 250,000-asset throughput guarantee**; benchmark against actual tenant data before advertising performance results.
 
-### Roadmap
+## Security, privacy, eligibility
 
-Planned extensions include validated Tenable Solutions grouping, ServiceNow Table API and additional enterprise data adapters, broader versioned CIS correlation mappings, benchmark-drift intelligence, an OPA policy runtime, optional OSCAL interoperability, and evidence-qualified topology/attack-path prerequisites. None of these future connectors or features should be mistaken for deployed v0.1 functionality.
+Use only data you are authorized to access. Do not publish real organization exports, personal information, credential files, proprietary CIS benchmark content, or API keys. The code is MIT licensed. See `docs/SECURITY.md`.
 
-## Limitations and safety
+The SWARM rules and Exchange contribution instructions are external requirements. Verify eligibility, the Discord submission cutoff, repository ownership, and the contribution agreement yourself before entering.
 
-The current CIS mappings and correlation examples are synthetic and **not production-approved controls**. They establish only candidate compounded exposures on a verified asset, not proven exploit chains or lateral movement. CMDB records can be incomplete or stale; an unverified mapping is excluded from priority enrichment. The agent never automatically changes policies, accepts risk, recasts findings, modifies endpoint settings, or initiates scans. Do not commit secrets, proprietary CIS audit files or real organizational security exports. See [security notes](docs/SECURITY.md) and [implementation limitations](docs/ARCHITECTURE.md).
+## Documentation references
 
-## License and references
+- Tenable integration guidance: https://developer.tenable.com/docs/vm-and-was-integrations
+- Tenable vulnerability export: https://developer.tenable.com/reference/exports-vulns-request-export
+- Tenable assets v2 export: https://developer.tenable.com/reference/export-assets-v2
+- Exchange listing requirements: https://github.com/tenable/cyberagents-exchange/blob/main/CONTRIBUTING.md
+- MCP SDK: https://py.sdk.modelcontextprotocol.io/
 
-**MIT License** — see [LICENSE](LICENSE).
+## License
 
-Developed for a proposed Tenable CyberAgents Exchange **Agent** submission. Exchange publication, any competition entry and compliance with eligibility rules are separate steps; hosting this repository on GitHub alone is not an Exchange submission.
-
-- [Tenable integration guidance](https://developer.tenable.com/docs/vm-and-was-integrations)
-- [Tenable vulnerability export API](https://developer.tenable.com/reference/exports-vulns-request-export)
-- [Tenable assets v2 export API](https://developer.tenable.com/reference/export-assets-v2)
-- [CyberAgents Exchange contribution instructions](https://github.com/tenable/cyberagents-exchange/blob/main/CONTRIBUTING.md)
-- [MCP Python SDK](https://py.sdk.modelcontextprotocol.io/)
+MIT — see `LICENSE`.
