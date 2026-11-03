@@ -132,4 +132,10 @@ class Store:
     def overview(self):
         result = {t:self.count(t) for t in ("assets","findings","cmdb","correlations")}
         result["types"] = self.rows("SELECT kind,count(*) AS count FROM findings GROUP BY kind ORDER BY kind")
+        # ADDITIVE: distinguish failed controls from scan-hygiene WARNING/ERROR.
+        status_rows=self.rows("SELECT upper(coalesce(status,'UNKNOWN')) AS status,count(*) AS count "
+                              "FROM findings WHERE kind='compliance' GROUP BY upper(coalesce(status,'UNKNOWN')) ORDER BY status")
+        result['compliance_status_counts']={row['status']:row['count'] for row in status_rows}
+        result['compliance_scan_hygiene']={name:result['compliance_status_counts'].get(name,0)
+                                          for name in ('WARNING','ERROR')}
         return result

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<NessusClientData_v2 xmlns:cm="http://www.nessus.org/cm">
+  <Report name="synthetic-non-sensitive-lab">
+    <ReportHost name="192.0.2.10">
+      <HostProperties>
+        <tag name="host-uuid">nessus-fixture-host-a</tag>
+        <tag name="host-ip">192.0.2.10</tag>
+        <tag name="host-fqdn">pay-web-01.fixture.invalid</tag>
+        <tag name="operating-system">Ubuntu Linux 24.04</tag>
+      </HostProperties>
+      <ReportItem pluginID="424242" pluginName="Synthetic OpenSSH vulnerability" severity="3" port="22" protocol="tcp">
+        <cpe>cpe:/a:openbsd:openssh:9.0</cpe>
+        <solution>Update OpenSSH package</solution>
+        <plugin_output>Controlled fictional sample: version check requires review.</plugin_output>
+      </ReportItem>
+      <ReportItem pluginID="100001" pluginName="Synthetic SSH compliance audit" severity="0" port="0" protocol="tcp">
+        <cm:compliance-check-name>Ensure SSH access is limited</cm:compliance-check-name>
+        <cm:compliance-check-id>SYNTH-SSH-CHECK</cm:compliance-check-id>
+        <cm:compliance-audit-file>synthetic-linux.audit</cm:compliance-audit-file>
+        <cm:compliance-result>FAILED</cm:compliance-result>
+        <cm:compliance-actual-value>unrestricted</cm:compliance-actual-value>
+        <cm:compliance-policy-value>restricted</cm:compliance-policy-value>
+      </ReportItem>
+      <ReportItem pluginID="19506" pluginName="Synthetic Info Plugin" severity="0" port="0" protocol="tcp">
+        <plugin_output>Noncompliance information only; do not import as vulnerability.</plugin_output>
+      </ReportItem>
+    </ReportHost>
+    <ReportHost name="192.0.2.10">
+      <HostProperties>
+        <tag name="host-uuid">nessus-fixture-host-b</tag>
+        <tag name="host-ip">192.0.2.10</tag>
+        <tag name="host-fqdn">qa-laptop.fixture.invalid</tag>
+        <tag name="operating-system">Windows 11</tag>
+      </HostProperties>
+      <ReportItem pluginID="100002" pluginName="Synthetic audit coverage error" severity="0" port="0" protocol="tcp">
+        <cm:compliance-check-name>Check operating system audit coverage</cm:compliance-check-name>
+        <cm:compliance-check-id>SYNTH-COVERAGE-CHECK</cm:compliance-check-id>
+        <cm:compliance-audit-file>synthetic-windows.audit</cm:compliance-audit-file>
+        <cm:compliance-result>ERROR</cm:compliance-result>
+        <cm:compliance-actual-value>scanner could not validate</cm:compliance-actual-value>
+        <cm:compliance-policy-value>require coverage</cm:compliance-policy-value>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

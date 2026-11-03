@@ -59,6 +59,9 @@ a.metric('Assets',summary['assets'])
 b.metric('Findings',summary['findings'])
 c.metric('Verified CMDB records',len(store.rows('SELECT ci_id FROM cmdb WHERE verified=1')))
 d.metric('CIS correlations',summary['correlations'])
+st.caption('Compliance scan hygiene (not FAIL findings): '
+           f"WARNING {summary.get('compliance_scan_hygiene',{}).get('WARNING',0)}  ·  "
+           f"ERROR {summary.get('compliance_scan_hygiene',{}).get('ERROR',0)}")
 
 tab_fixes,tab_policy,tab_replay=st.tabs(['Fix Groups & Assets','Policy & Investigation','Decision Replay'])
 
@@ -77,8 +80,11 @@ with tab_fixes:
         st.warning('No findings imported. Use “Load synthetic demo” in the sidebar.')
     st.subheader('Asset investigation')
     selected_id=st.text_input('Tenable asset UUID',value='demo-prod-042' if summary['assets'] else '')
+    # Optional contextual view; unchecked preserves the prior asset response.
+    contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=False)
     if st.button('Investigate asset') and selected_id:
-        st.json(get_asset_exposure(store,selected_id,limit=30))
+        st.json(get_asset_exposure(store,selected_id,limit=30,
+                 policy=policy if contextual_asset else None))
 
 with tab_policy:
     st.subheader('Human-readable contextual policy')
@@ -126,20 +132,51 @@ with tab_policy:
                 st.error(str(exc))
 
 with tab_replay:
-    st.subheader('DecisionTrace — policy change replay')
-    st.write('This replay compares two policies against the **same unchanged dataset**.')
-    if st.button('Generate baseline and contextual receipts'):
-        base=create_receipt(store,load_policy(ROOT/'policies/default.yaml'),RECEIPTS/'baseline.json')
-        contextual=create_receipt(store,load_policy(ROOT/'policies/business-context.yaml'),RECEIPTS/'contextual.json')
-        st.session_state['replay']=compare_receipts(base,contextual)
-    if st.session_state.get('replay'):
-        replay=st.session_state['replay']
-        st.metric('Changed group decisions',replay['moved_group_count'])
-        st.caption('Cause: '+replay['change_type'])
-        st.dataframe([{k:m.get(k) for k in ('label','old_rank','new_rank','old_priority','new_priority','old_score','new_score')}
-                      for m in replay['top_movements']],hide_index=True,use_container_width=True)
-        with st.expander('Complete evidence and rule-level differences'):
-            st.json(replay)
-    st.caption('The receipt fingerprint proves input consistency, not the truth of the underlying scanner evidence.')
+    # Staged mode is an isolated synthetic demo; default mode remains unchanged.
+    replay_mode=st.radio('Replay scenario',
+        ['Policy change (same dataset)','Staged evidence (synthetic)'],horizontal=True)
+    if replay_mode=='Policy change (same dataset)':
+        st.subheader('DecisionTrace — policy change replay')
+        st.write('This replay compares two policies against the **same unchanged dataset**.')
+        if st.button('Generate baseline and contextual receipts'):
+            base=create_receipt(store,load_policy(ROOT/'policies/default.yaml'),RECEIPTS/'baseline.json')
+            contextual=create_receipt(store,load_policy(ROOT/'policies/business-context.yaml'),RECEIPTS/'contextual.json')
+            st.session_state['replay']=compare_receipts(base,contextual)
+        if st.session_state.get('replay'):
+            replay=st.session_state['replay']
+            st.metric('Changed group decisions',replay['moved_group_count'])
+            st.caption('Cause: '+replay['change_type'])
+            st.dataframe([{k:m.get(k) for k in ('label','old_rank','new_rank','old_priority','new_priority','old_score','new_score')}
+                          for m in replay['top_movements']],hide_index=True,use_container_width=True)
+            with st.expander('Complete evidence and rule-level differences'):
+                st.json(replay)
+        st.caption('The receipt fingerprint proves input consistency, not the truth of the underlying scanner evidence.')
+
+    else:
+        st.subheader('DecisionTrace — staged evidence replay')
+        st.info('Synthetic scenario. Three independent databases; one unchanged policy.')
+        st.caption('Stage 1: vulnerability evidence → Stage 2: add CIS results → Stage 3: add verified CMDB context.')
+        if st.button('Run synthetic evidence stages'):
+            from threatweave.staged import run_staged_demo
+            with st.spinner('Computing three deterministic evidence snapshots...'):
+                st.session_state['staged_evidence']=run_staged_demo(
+                    ROOT/'runtime/staged-ui',n_assets=0)
+        staged=st.session_state.get('staged_evidence')
+        if staged:
+            a,b=st.columns(2)
+            a.metric('Groups moved after CIS',staged['stage1_to_stage2']['moved_group_count'])
+            b.metric('Groups moved after CMDB',staged['stage2_to_stage3']['moved_group_count'])
+            st.write('**CIS evidence added:**',staged['stage1_to_stage2']['evidence_changed'])
+            st.write('**CMDB evidence added:**',staged['stage2_to_stage3']['evidence_changed'])
+            st.subheader('pay-web-01 · synthetic hero asset')
+            for name, groups in staged['hero_fix_groups'].items():
+                with st.expander(name,expanded=name=='stage3_plus_cmdb'):
+                    st.dataframe([{k:g.get(k) for k in
+                         ('label','rank','score','priority','compounded_assets_count','matched_rules')}
+                         for g in groups],hide_index=True,use_container_width=True)
+            with st.expander('Complete stage-to-stage Decision Receipt comparisons'):
+                st.json({'cis_added':staged['stage1_to_stage2'],
+                         'cmdb_added':staged['stage2_to_stage3']})
+            st.caption(staged['evidence_note'])
 
 store.close()

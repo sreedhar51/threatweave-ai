@@ -58,11 +58,44 @@ def correlate(store, rules_path):
     return {'correlations':created,'rules_checked':len(rules),'cross_asset_paths_validated':0}
 
 
-def get_asset_exposure(store, asset_id, limit=100):
+def get_asset_exposure(store, asset_id, limit=100, policy=None):
     limit=max(1,min(int(limit),200))
     asset=store.rows('SELECT * FROM assets WHERE asset_id=?',(asset_id,))
     cmdb=store.rows('SELECT * FROM cmdb WHERE asset_id=? AND verified=1',(asset_id,))
     findings=store.rows('SELECT finding_id,kind,title,severity,vpr,status,control_id,software_family,source_hash FROM findings WHERE asset_id=? ORDER BY kind,finding_id LIMIT ?', (asset_id,limit))
     links=store.rows('SELECT correlation_id,vuln_id,compliance_id,rule_id,rationale FROM correlations WHERE asset_id=? LIMIT ?', (asset_id,limit))
-    return {'asset':asset[0] if asset else None,'cmdb':cmdb,'findings':findings,'correlations':links,
+    result={'asset':asset[0] if asset else None,'cmdb':cmdb,'findings':findings,'correlations':links,
             'cross_asset_attack_path':'unverified - topology/reachability evidence not provided'}
+    if policy is not None:
+        # ADDITIVE: default response is unchanged; opt-in policy view shares the
+        # exact ContextIQ evaluator and context logic used for Fix Group ranking.
+        from .engine import _contexts, _risk_context
+        from .policy import evaluate_finding, validate_policy
+        validate_policy(policy)
+        mapped=_contexts(store)
+        correlated_vulns={link['vuln_id'] for link in links}
+        full_findings={r['finding_id']:r for r in store.rows(
+            'SELECT * FROM findings WHERE asset_id=?',(asset_id,))}
+        evaluations=[]
+        for visible in findings:
+            original=full_findings[visible['finding_id']]
+            context=_risk_context(asset[0] if asset else {'asset_type':'unknown'},mapped,
+                                  original,original['finding_id'] in correlated_vulns)
+            evaluation=evaluate_finding(original,context,policy)
+            evaluations.append({'finding_id':original['finding_id'],
+                'kind':original['kind'],'vendor_severity':original['severity'],
+                'vendor_vpr':original['vpr'],
+                'contextual_score':evaluation['score'],
+                'contextual_priority':evaluation['priority'],
+                'matched_rules':[c['rule_id'] for c in evaluation['contributions']],
+                'rule_contributions':evaluation['contributions'],
+                'evidence_flags':evaluation['evidence_flags']})
+        result['finding_evaluations']=evaluations
+        result['correlated_cis_evidence']=[{
+            'vulnerability_finding_id':link['vuln_id'],
+            'compliance_finding_id':link['compliance_id'],
+            'compliance_title':full_findings.get(link['compliance_id'],{}).get('title'),
+            'compliance_status':full_findings.get(link['compliance_id'],{}).get('status'),
+            'rule_id':link['rule_id'],'rationale':link['rationale']
+        } for link in links]
+    return result

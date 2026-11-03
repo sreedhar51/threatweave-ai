@@ -81,6 +81,64 @@ export ANTHROPIC_API_KEY='your-key-from-a-secure-environment'
 
 Claude is optional and used for bounded evidence interpretation and draft policy authoring. The deterministic engine—not the language model—decides group priorities. Do not use real organizational exports with a third-party model without authorization.
 
+## Flagship demo — evidence arrives in three stages
+
+ThreatWeave separates **evidence-driven** changes from **policy-driven** changes. The three-stage demonstration uses the **same approved contextual policy** across three independent, synthetic datasets:
+
+```bash
+# Run with no cloud credentials; records and receipts are synthetic.
+threatweave demo --staged
+
+# Repeat with 5,000 additional deterministic synthetic assets.
+threatweave demo --staged --assets 5000
+```
+
+| Synthetic stage | OpenSSH group on `pay-web-01` | Payment OpenSSL group |
+| --- | --- | --- |
+| Vulnerabilities only | Rank #3 · score 55.53 | Rank #2 · score 55.67 |
+| Add relevant failed CIS control | Rank #2 · score 69.53 | Rank #4 · score 55.67 |
+| Add human-verified CMDB criticality | Rank #1 · score 93.53 | Rank #3 · score 79.67 |
+
+**Expected source attribution:**
+
+```text
+Stage 1 → 2: evidence_changed = ["compliance", "correlations"]
+Stage 2 → 3: evidence_changed = ["cmdb"]
+```
+
+Scores are illustrative **organizational prioritization scores**, not CVSS or Tenable VPR; ranking ties and group changes reflect the synthetic estate. All hostnames, CVEs, CIS-like check identifiers and CMDB records in this example are fictional. These correlations are *candidates*, **not verified network attack paths**.
+
+## On prem — Nessus Manager, Security Center and CMDB
+
+**Nessus XML (implemented and locally tested):** Import an authorized Nessus v2 `.nessus` export directly. This streaming parser rejects `DOCTYPE` / `ENTITY`, separates hosts using UUID (never IP), skips severity-0 informational vulnerability plugins and keeps compliance `ERROR` / `WARNING` separate from failed controls.
+
+```bash
+threatweave --db runtime/onprem.db import nessus ./authorized-scan.nessus
+threatweave --db runtime/onprem.db correlate
+```
+
+**Tenable Security Center (optional, mock-tested only):** The read-only collector makes bounded `POST /rest/analysis` **query** requests using `vulndetails` with offsets, and parses available `cm:compliance-*` metadata. This is a **synchronous** endpoint; validate an authorized tenant and avoid oversized queries.
+
+```bash
+export SC_ACCESS_KEY='...'   # use a secret manager; never commit credentials
+export SC_SECRET_KEY='...'
+threatweave --db runtime/onprem.db securitycenter-export \
+  --url https://your-sc-host.example --page-size 200 --max-pages 5 \
+  --ca-bundle ./your-trusted-ca.pem
+```
+
+Where Security Center does **not** supply a host UUID, ThreatWeave deliberately assigns each record an opaque unresolved ID rather than merging hosts using an IP address.
+
+**ServiceNow CMDB (CSV/JSON only, human gate):** First ingest Tenable assets, then generate review proposals by exact FQDN/hostname. Review and explicitly set `mapping_verified=yes` on approved rows before importing. IP matches are prohibited.
+
+```bash
+threatweave --db runtime/onprem.db cmdb-propose ./servicenow.csv --out ./proposals.csv
+# Human verifies and approves selected mapping_verified cells.
+threatweave --db runtime/onprem.db import cmdb ./proposals.csv --provider servicenow-export
+```
+
+ServiceNow live Table API integration is **not implemented**. See [On-prem integration and caveats](docs/ON_PREM.md) and [connector fields](docs/CONNECTORS.md).
+
 ## Bring your own authorized evidence
 
 The same DataBridge imports structured exports without API access:
@@ -137,7 +195,7 @@ python -m pip install -e '.[dev]'
 pytest -q
 ```
 
-The local packaging regression suite previously passed **18 tests**; verify the current checkout and GitHub Actions independently. The portable store is SQLite, with an optional DuckDB/Parquet reporting extra (`pip install -e '.[analytics]'`). **No 250,000-asset throughput guarantee is claimed.**
+The local packaging regression suite passed **31 tests** locally (including the original 18 tests and 13 added checks); verify the current checkout and GitHub Actions independently. The portable store is SQLite, with an optional DuckDB/Parquet reporting extra (`pip install -e '.[analytics]'`). **No 250,000-asset throughput guarantee is claimed.**
 
 ### Roadmap
 
