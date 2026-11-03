@@ -138,6 +138,14 @@ python -m pip install -e '.[analytics]'
 
 There is **no claimed 250,000-asset throughput guarantee**; benchmark against actual tenant data before advertising performance results.
 
+## Windows Partner Lab live connection check
+
+Run the local, credential-safe Tenable VM preflight with **rotated** API keys;
+see [Windows laptop setup and documented API best practices](docs/TENANT_PREFLIGHT.md).
+The Tenable cloud VM account is not the same product or credential set as
+on-prem Security Center or Cloud Security GraphQL. Live connection was not
+validated in the ChatGPT execution environment.
+
 ## Security, privacy, eligibility
 
 Use only data you are authorized to access. Do not publish real organization exports, personal information, credential files, proprietary CIS benchmark content, or API keys. The code is MIT licensed. See `docs/SECURITY.md`.

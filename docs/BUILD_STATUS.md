@@ -4,7 +4,7 @@ Updated: November 3, 2026. Work-in-progress review branch `review/steps-1-5-evid
 
 ## Verified locally
 
-- **36 automated tests passed**, including the original **18** unmodified tests, the 13 regression tests from changes 6–9, and 5 new Tenable preflight/schema tests. Run: `PYTHONPATH=src pytest -q`.
+- **40 automated tests passed**, including the original **18** unmodified tests, the 13 regression tests from changes 6–9, and 5 new Tenable preflight/schema tests. Run: `PYTHONPATH=src pytest -q`.
 - Three-stage demo with unchanged policy returns `evidence_changed: ["compliance", "correlations"]` when CIS evidence is added and `["cmdb"]` when verified CI mapping is added.
 - 5,000-asset synthetic staged run completed in the previous review; no production throughput certification.
 - Family classification covers common Tenable metadata when `software_family` is absent; conservative same-asset vulnerability/CIS links require an explicit mapping rule.
@@ -48,3 +48,11 @@ A Fix Group's score is the maximum member finding score, **capped at 100**. At s
 ## Before Exchange submission
 
 Confirm contest eligibility and deadline, validate authorized tenant export, run the complete tests on Python 3.11+, launch UI and MCP client, capture a demo video, review the submission listing against current Exchange requirements, and complete the contribution agreement as an authorized eligible participant. A public GitHub repository alone is not an Exchange submission.
+
+## Tenable documentation and API-guidance review (Nov 3, 2026)
+
+- Confirmed the official integration kickstart, Vulnerability Management bulk export, Security Center synchronous analysis, pyTenable and User-Agent guidance.
+- Updated VM/SC request headers to the documented standard integration User-Agent. The default VM asset export now requests 4,000 assets per chunk. VM export polling recognizes `FAILED` as a terminal failure.
+- Security Center analysis now excludes WAS findings by default and uses sequential bounded retry on 429/502/503/504 responses. The client never writes to Security Center.
+- Added four mocked API regression tests; **40 tests passed** locally. The updated code has **not been run on the user's laptop**, authenticated against the Partner Lab, or validated for live SC API semantics.
+- For Windows laptop connection tests and safe hidden credential entry, see `docs/TENANT_PREFLIGHT.md`.

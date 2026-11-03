@@ -29,3 +29,72 @@ Tenable VM documented shapes: assets contain `id` and often `hostname`/`operatin
 Current validation status: **The application code and mocked API behavior have been tested locally; no real tenant connection was possible from the ChatGPT execution environment (DNS/network resolution blocked).** Real lab availability, scan coverage, rate limits, export schema and privilege grants remain unverified until the preflight is executed from an authorized network.
 
 References: https://developer.tenable.com/reference/assets-list-assets , https://developer.tenable.com/reference/io-exports-compliance-create , https://developer.tenable.com/reference/io-exports-compliance-download
+
+## Windows laptop: safe connection smoke test
+
+The keys shown in the emailed screenshots are **exposed**. Revoke/rotate them first.
+This Tenant VM lab uses `https://cloud.tenable.com`; it is **not** a
+Security Center server. Do not send Tenable VM keys to `/rest/analysis` or
+use them as Cloud Security GraphQL keys. Cloud Security credentials require a
+separate provisioned key if that product is in scope.
+
+Open **PowerShell** in a trusted local checkout (not a cloud terminal) and run:
+
+```powershell
+git switch review/steps-1-5-evidence-foundations
+git pull --ff-only
+py -3.11 -m pip install -e '.[dev]'
+py -3.11 -m pytest -q
+
+# Hidden prompts: do NOT paste secrets in the chat, GitHub, or scripts.
+$ak = Read-Host 'Rotated Tenable VM access key' -AsSecureString
+$sk = Read-Host 'Rotated Tenable VM secret key' -AsSecureString
+$env:TENABLE_ACCESS_KEY = [System.Net.NetworkCredential]::new('', $ak).Password
+$env:TENABLE_SECRET_KEY = [System.Net.NetworkCredential]::new('', $sk).Password
+$env:TENABLE_BASE_URL = 'https://cloud.tenable.com'
+
+py -3.11 scripts/tenant_preflight.py
+py -3.11 scripts/tenant_preflight.py --check-compliance
+
+# Remove from the current session after testing.
+Remove-Item Env:TENABLE_ACCESS_KEY,Env:TENABLE_SECRET_KEY -ErrorAction SilentlyContinue
+```
+
+The default preflight performs **GET** requests only. The optional compliance
+check initiates a bounded **read-only export** job for one visible asset. It does
+not scan, patch, or mutate findings. It prints aggregate coverage and status
+counts; inspect them before attempting a larger export. A 401/403 indicates
+an authentication/permission problem, not that the dataset is empty.
+
+The base connector defaults to 4,000 assets per asset-export chunk (the
+recommended performance range is 4,000–5,000). Documented vulnerability
+export chunking is based on `num_assets`; compliance uses `num_findings`.
+Keep explicit filters to avoid inadvertently fetching a huge estate or the
+wrong time period. No unbounded export or automated repeated polling is
+performed by this preflight.
+
+## Tenable engineering guidance incorporated
+
+- **VM**: use asynchronous export jobs; download only available chunks; guard
+  against 429/transient 5xx responses; stop on failed exports; preserve Tenable
+  UUID-based asset identity and original finding severity/VPR.
+- **Security Center**: use serial, bounded, synchronous `/rest/analysis` with
+  `vulndetails`, exclude informational and WAS findings by default, support
+  limited retries on 429 and transient 5xx. Security Center and VM use
+  **different authentication headers and separate keys**.
+- **API identity**: send `Integration/1.0 (ThreatWeave Contributors; ThreatWeave AI; Build/0.1.0)`
+  as the `User-Agent`. Tenable recommends this standard format to distinguish
+  partner integrations and investigate API usage.
+- **Production limitations**: read-only threat intelligence is only an
+  initial integration. Tenable's official partner validation criteria may
+  additionally require bidirectional asset synchronization for solutions
+  that manage asset lifecycles; ThreatWeave is **not** claiming Tenable
+  partner certification.
+
+Source references:
+- https://developer.tenable.com/docs/integration-kickstart
+- https://developer.tenable.com/docs/vm-and-was-integrations
+- https://developer.tenable.com/docs/sc-integrations
+- https://developer.tenable.com/docs/user-agent-header
+- https://docs.tenable.com/security-center/best-practices/large-enterprise-deployment/Content/API.htm
+- https://pytenable.readthedocs.io/en/stable/

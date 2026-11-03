@@ -7,6 +7,7 @@ exports, this source is paginated and can load the on-prem console heavily.
 import hashlib
 import json
 import os
+import time
 from urllib.parse import urlparse
 import httpx
 from .compliance_tags import extract_compliance_tags, compliance_status
@@ -29,7 +30,7 @@ class SecurityCenterClient:
                timeout=timeout, verify=ca_bundle or True,
                headers={'x-apikey':f'accesskey={ak}; secretkey={sk};',
                         'Accept':'application/json', 'Content-Type':'application/json',
-                        'User-Agent':'ThreatWeaveAI/0.1 (read-only Security Center)'})
+                        'User-Agent':'Integration/1.0 (ThreatWeave Contributors; ThreatWeave AI; Build/0.1.0)'})
 
     def close(self):
         self.client.close()
@@ -41,7 +42,8 @@ class SecurityCenterClient:
         if not 1<=page_size<=2000 or not 1<=max_pages<=1000:
             raise ValueError('Page size must be <=2000 and max_pages <=1000')
         query_filters=filters if filters is not None else [
-            {'filterName':'severity','operator':'=','value':'1,2,3,4'}]
+            {'filterName':'severity','operator':'=','value':'1,2,3,4'},
+            {'filterName':'wasVuln','operator':'=','value':'excludeWas'}]
         if not isinstance(query_filters,list):
             raise ValueError('Filters must be an explicit list')
         for page in range(max_pages):
@@ -49,7 +51,15 @@ class SecurityCenterClient:
             body={'type':'vuln','sourceType':'cumulative',
                   'query':{'type':'vuln','tool':'vulndetails','filters':query_filters,
                            'startOffset':start,'endOffset':start+page_size}}
-            response=self.client.post('/rest/analysis',json=body)
+            # Serial bounded retries. Do not parallelize Security Center analysis.
+            for attempt in range(3):
+                response=self.client.post('/rest/analysis',json=body)
+                if response.status_code not in (429,502,503,504):
+                    break
+                if attempt < 2:
+                    retry_after=response.headers.get('Retry-After', '')
+                    delay=min(5, int(retry_after)) if retry_after.isdigit() else 2**attempt
+                    time.sleep(delay)
             response.raise_for_status()
             payload=response.json()
             if payload.get('error_code') not in (None,0,'0'):

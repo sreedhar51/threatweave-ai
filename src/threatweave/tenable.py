@@ -32,7 +32,7 @@ class TenableExportClient:
         self.client=httpx.Client(base_url=base,transport=transport,timeout=timeout,headers={
              'X-ApiKeys':f'accessKey={ak}; secretKey={sk}',
              'Accept':'application/json','Content-Type':'application/json',
-             'User-Agent':'ThreatWeaveAI/0.1 (read-only-competition-agent)'})
+             'User-Agent':'Integration/1.0 (ThreatWeave Contributors; ThreatWeave AI; Build/0.1.0)'})
 
     def close(self): self.client.close()
 
@@ -52,7 +52,7 @@ class TenableExportClient:
         if kind not in EXPORTS: raise ValueError('Unsupported export kind')
         start_prefix=EXPORTS[kind][0]
         if body is None:
-            body={'chunk_size':1000} if kind=='asset' else {}
+            body={'chunk_size':4000} if kind=='asset' else {}
         if not isinstance(body,dict): raise ValueError('Export body must be a JSON object')
         result=self.request('POST',start_prefix,json=body).json()
         export_id=result.get('export_uuid') or result.get('uuid')
@@ -68,7 +68,7 @@ class TenableExportClient:
         while True:
             state=self.request('GET',f'{prefix}/{job}/status').json()
             status=str(state.get('status','')).upper()
-            if status in {'ERROR','CANCELLED'}:
+            if status in {'ERROR','FAILED','CANCELLED'}:
                 raise RuntimeError(f'Export stopped with state {status}')
             available=state.get('chunks_available',[]) or []
             # Chunk IDs are not guaranteed to be consecutive or sorted.
