@@ -128,6 +128,20 @@ Tenable VM exports use asynchronous jobs and download chunks. Assets initiate vi
 - `tests/` — regression and safety tests
 - `docs/` — architecture, connectors, demo, and submission checklist
 
+## SWARM acceptance gate — repeatable, inspectable decisions
+
+The [SWARM readiness checklist](docs/SWARM_READINESS.md) turns Tenable's workshop guidance into executable checks: actionable ranked decisions, relevant evidence, human verification, three-run deterministic replay, and clear limitations.
+
+```bash
+python -m pip install -e '.[dev]'
+python -m pytest -q
+python scripts/ship_check.py --repeat 3
+# Optional 5,000-asset synthetic smoke benchmark (not a production guarantee)
+python scripts/ship_check.py --repeat 3 --assets 5000
+```
+
+`ship_check` creates disposable synthetic databases and compares the complete stable receipt content across three runs. It **fails with a nonzero exit code** if decisions, source-specific fingerprints or policy provenance drift. No live tenant credentials are required. For agent/tool operating boundaries, see [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md).
+
 ## Optional performance analytics
 
 The base application uses SQLite for a portable offline-first MVP. The `analytics` extra supports chunked SQLite-to-Parquet materialization and DuckDB query summaries:

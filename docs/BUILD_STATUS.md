@@ -56,3 +56,11 @@ Confirm contest eligibility and deadline, validate authorized tenant export, run
 - Security Center analysis now excludes WAS findings by default and uses sequential bounded retry on 429/502/503/504 responses. The client never writes to Security Center.
 - Added four mocked API regression tests; **40 tests passed** locally. The updated code has **not been run on the user's laptop**, authenticated against the Partner Lab, or validated for live SC API semantics.
 - For Windows laptop connection tests and safe hidden credential entry, see `docs/TENANT_PREFLIGHT.md`.
+
+## SWARM workshop hardening (November 3, 2026)
+
+- Added three independent clean staged-demo acceptance executions with exact stable Decision Receipt comparison, fingerprints and policy-invariant checks; failures exit nonzero.
+- Added six automated tests for release gate, oversized agent-response handling and negative controls. Local regression suite: **46 passed**.
+- Added minimal `CLAUDE.md` / `AGENTS.md`, a SWARM-readiness checklist and CI repeatability check. These are not Exchange Inspector vetting.
+- Oversized Claude tool responses now return valid structured `TRUNCATED` JSON instead of invalid fragments. No new scorer, vendor writes or cross-host inferences.
+- Performance was checked synthetically at 5,000 generated assets per stage. No certified live tenant throughput, customer outcomes, real-world time-saved measurement or Exchange approval claim.
