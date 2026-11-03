@@ -1,0 +1,18 @@
+[
+  {
+    "ci_sys_id": "synthetic-cmdb-ci-042",
+    "tenable_asset_uuid": "demo-prod-042",
+    "mapping_verified": "yes",
+    "business_service": "Payment Authorization (synthetic)",
+    "business_criticality": "critical",
+    "environment": "production",
+    "role": "identity_server",
+    "business_tags": [
+      "payments",
+      "identity"
+    ],
+    "support_group": "Platform Operations",
+    "internet_exposure": "unknown",
+    "last_updated": "2026-11-02T12:00:00Z"
+  }
+]

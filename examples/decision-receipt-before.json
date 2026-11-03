@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.1.0",
+  "dataset_hash": "sha256:3e89185ba0830dc91b298b7777fe10e6a029bbd719fb7488be170afdb81ad42c",
+  "policy_hash": "sha256:d2529ae6f5a930dfdf29a9f9535dd96727d43bd31b0ccb7bc45db6a237bcbeb3",
+  "policy_id": "default",
+  "policy_version": "1.0",
+  "rankings": [
+    {
+      "fix_group_id": "63ab8c9edbdd5a1331",
+      "label": "Update example software library",
+      "mapping_quality": "candidate_solution_family",
+      "kind": "vulnerability",
+      "score": 72.58,
+      "priority": "high",
+      "finding_count": 2,
+      "matched_rules": [],
+      "rule_contributions": {},
+      "evidence_flags": [],
+      "evidence_refs": [
+        {
+          "finding_id": "64699713cd742685e09592f0",
+          "source_hash": "32c02ec2142bba19f47eaa4cef3d6a28cf887dfffa190581188a7250606ac82b",
+          "asset_id": "demo-dev-001",
+          "kind": "vulnerability"
+        },
+        {
+          "finding_id": "77814d1ea485e391a89e0024",
+          "source_hash": "0b714f21542db2732e3a842741eff844877abc057a24158a8c084d1d02a883ed",
+          "asset_id": "demo-dev-001",
+          "kind": "vulnerability"
+        }
+      ],
+      "assets_count": 1,
+      "servers_count": 1,
+      "workstations_count": 0,
+      "production_assets_count": 0,
+      "compounded_assets_count": 0,
+      "critical_assets_count": 0,
+      "rank": 1
+    },
+    {
+      "fix_group_id": "c01908272ebfd8e559",
+      "label": "Update remote administration service",
+      "mapping_quality": "candidate_solution_family",
+      "kind": "vulnerability",
+      "score": 55.04,
+      "priority": "high",
+      "finding_count": 1,
+      "matched_rules": [],
+      "rule_contributions": {},
+      "evidence_flags": [],
+      "evidence_refs": [
+        {
+          "finding_id": "9ae3a0cfe9ece1a69790cccc",
+          "source_hash": "e29103f1a8d7b6e551893f7f6861e94de40502c1aedc4bbdfc8ffc6978d97a7d",
+          "asset_id": "demo-prod-042",
+          "kind": "vulnerability"
+        }
+      ],
+      "assets_count": 1,
+      "servers_count": 1,
+      "workstations_count": 0,
+      "production_assets_count": 1,
+      "compounded_assets_count": 1,
+      "critical_assets_count": 1,
+      "rank": 2
+    },
+    {
+      "fix_group_id": "27ce01382f46bfc6ab",
+      "label": "Update example workstation application",
+      "mapping_quality": "candidate_solution_family",
+      "kind": "vulnerability",
+      "score": 37.13,
+      "priority": "medium",
+      "finding_count": 1,
+      "matched_rules": [],
+      "rule_contributions": {},
+      "evidence_flags": [],
+      "evidence_refs": [
+        {
+          "finding_id": "fc02bdaf9af70ed1b19acbcf",
+          "source_hash": "adca71d49637ba7bafeea354bb26567441870464c814b9050f9ab32936688532",
+          "asset_id": "demo-ws-007",
+          "kind": "vulnerability"
+        }
+      ],
+      "assets_count": 1,
+      "servers_count": 0,
+      "workstations_count": 1,
+      "production_assets_count": 0,
+      "compounded_assets_count": 0,
+      "critical_assets_count": 0,
+      "rank": 3
+    },
+    {
+      "fix_group_id": "4f956e25b156d20b0c",
+      "label": "Review CIS control CIS-REMOTE-ADMIN",
+      "mapping_quality": "candidate_configuration_group",
+      "kind": "compliance",
+      "score": 33.0,
+      "priority": "medium",
+      "finding_count": 1,
+      "matched_rules": [],
+      "rule_contributions": {},
+      "evidence_flags": [],
+      "evidence_refs": [
+        {
+          "finding_id": "d3bb444bf5fae6ccfac8d67e",
+          "source_hash": "8e6156f4b8b8d6ac1b91544374d6434279fb2dfb0bae92977a20ac5986a4ea3f",
+          "asset_id": "demo-ws-007",
+          "kind": "compliance"
+        }
+      ],
+      "assets_count": 1,
+      "servers_count": 0,
+      "workstations_count": 1,
+      "production_assets_count": 0,
+      "compounded_assets_count": 0,
+      "critical_assets_count": 0,
+      "rank": 4
+    },
+    {
+      "fix_group_id": "6108302629c3d3ff56",
+      "label": "Review CIS control CIS-REMOTE-ADMIN",
+      "mapping_quality": "candidate_configuration_group",
+      "kind": "compliance",
+      "score": 33.0,
+      "priority": "medium",
+      "finding_count": 1,
+      "matched_rules": [],
+      "rule_contributions": {},
+      "evidence_flags": [],
+      "evidence_refs": [
+        {
+          "finding_id": "8e5fe7adbe139ec11438c0fa",
+          "source_hash": "ce73b2fe6263878be9f0f693f93141ec0188c6001f1a5135454f1a2bfca3d2a4",
+          "asset_id": "demo-prod-042",
+          "kind": "compliance"
+        }
+      ],
+      "assets_count": 1,
+      "servers_count": 1,
+      "workstations_count": 0,
+      "production_assets_count": 1,
+      "compounded_assets_count": 0,
+      "critical_assets_count": 1,
+      "rank": 5
+    }
+  ],
+  "source_summary": {
+    "assets": 3,
+    "findings": 6,
+    "cmdb": 1,
+    "correlations": 1,
+    "types": [
+      {
+        "kind": "compliance",
+        "count": 2
+      },
+      {
+        "kind": "vulnerability",
+        "count": 4
+      }
+    ]
+  },
+  "cross_asset_attack_paths": "not evaluated: network and identity reachability evidence unavailable",
+  "receipt_id": "DR-b125cba1b99dac4a",
+  "generated_at": "2026-11-03T06:43:31.201570+00:00"
+}

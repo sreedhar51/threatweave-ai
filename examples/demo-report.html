@@ -1,0 +1,29 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ThreatWeave AI — Synthetic Evidence Demo</title>
+<style>
+:root{--bg:#0a1220;--panel:#111f31;--panel2:#16283d;--line:#27425a;--text:#e8f3fc;--muted:#95adc0;--blue:#50d6e8;--gold:#ffd080}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0%,#183651,#0a1220 50%);color:var(--text);font:15px/1.6 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:44px 24px 80px}.eyebrow{letter-spacing:.2em;text-transform:uppercase;font-size:11px;font-weight:750;color:var(--blue)}
+h1{font-size:clamp(34px,6vw,62px);line-height:1.06;margin:15px 0 12px;letter-spacing:-.045em}h2{font-size:23px;letter-spacing:-.025em;margin:45px 0 16px}p{color:var(--muted);max-width:760px}
+.tag{display:inline-block;color:#102a32;background:#85e7ef;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:750}.note{padding:14px 17px;border:1px solid var(--line);border-radius:10px;margin:24px 0;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px;margin:28px 0}.metric,.card{background:linear-gradient(160deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:22px}
+.metric strong{display:block;font-size:34px;line-height:1.2;margin-bottom:4px}.metric span{color:var(--muted);font-size:13px}.timeline{display:flex;gap:10px;flex-wrap:wrap}.pill{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:12px}.arrow{color:var(--blue);font-weight:900}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-weight:600;padding:11px 9px;border-bottom:1px solid var(--line)}td{padding:14px 9px;border-bottom:1px solid var(--line);vertical-align:top}.sub{display:block;font-size:11px;color:var(--muted)}.table-wrap{overflow-x:auto;background:var(--panel);padding:15px;border:1px solid var(--line);border-radius:14px}
+.stat{color:var(--gold);font-weight:750}.foot{color:var(--muted);font-size:12px;margin-top:42px}
+</style></head><body><main><div class="eyebrow">ThreatWeave AI / DecisionTrace v0.1</div>
+<h1>Prove why security<br/>decisions changed.</h1>
+<p>Evidence-qualified vulnerability/CIS correlation, asset-level business context, and reproducible organizational policy replay.</p>
+<span class="tag">100% synthetic demonstration — no real tenants or licensed CIS benchmark data</span>
+<div class="grid"><div class="metric"><strong>3</strong><span>Distinct assets</span></div>
+<div class="metric"><strong>6</strong><span>Source findings</span></div>
+<div class="metric"><strong>1</strong><span>Validated same-asset correlation</span></div>
+<div class="metric"><strong>5</strong><span>Group decisions changed by policy</span></div></div>
+<h2>Evidence journey</h2><div class="timeline"><span class="pill">Tenable asset &amp; vulnerability evidence</span><span class="arrow">→</span><span class="pill">Relevant failed CIS control</span><span class="arrow">→</span><span class="pill">Verified CMDB context</span><span class="arrow">→</span><span class="pill">Approved policy</span><span class="arrow">→</span><span class="pill">Decision Receipt</span></div>
+<div class="note">A same-asset correlation is <strong>not</strong> proof of an inter-host attack path. ThreatWeave does not assume network reachability, authentication relationships, or patch success.</div>
+<h2>Policy Decision Replay</h2><p>Identical dataset fingerprint under two distinct policies. Priorities change only because the policy changes.</p>
+<div class="table-wrap"><table><thead><tr><th>Candidate fix group</th><th>Before rank</th><th>After rank</th><th>Before score</th><th>After score</th><th>Triggered rules</th></tr></thead><tbody><tr><td><strong>Update remote administration service</strong><span class="sub">candidate_solution_family</span></td><td>2</td><td>1</td><td>55.04</td><td>93.04</td><td>TW-COMPOUND, TW-PAYMENTS</td></tr><tr><td><strong>Update example software library</strong><span class="sub">candidate_solution_family</span></td><td>1</td><td>2</td><td>72.58</td><td>72.58</td><td>Default only</td></tr><tr><td><strong>Review CIS control CIS-REMOTE-ADMIN</strong><span class="sub">candidate_configuration_group</span></td><td>5</td><td>3</td><td>33.0</td><td>57.0</td><td>TW-PAYMENTS</td></tr><tr><td><strong>Update example workstation application</strong><span class="sub">candidate_solution_family</span></td><td>3</td><td>4</td><td>37.13</td><td>37.13</td><td>Default only</td></tr><tr><td><strong>Review CIS control CIS-REMOTE-ADMIN</strong><span class="sub">candidate_configuration_group</span></td><td>4</td><td>5</td><td>33.0</td><td>33.0</td><td>Default only</td></tr></tbody></table></div>
+<h2>Evidence integrity</h2><div class="grid"><div class="card"><div class="eyebrow">Dataset SHA-256</div><code>sha256:3e89185ba0830dc91b298b7…</code></div><div class="card"><div class="eyebrow">Baseline receipt</div><code>DR-b125cba1b99dac4a</code></div><div class="card"><div class="eyebrow">Contextual receipt</div><code>DR-2db54e9cb3d3d5b5</code></div></div>
+<p>ThreatWeave keeps original vendor severity and VPR unchanged. Its scores represent only a configurable organizational priority model. Source record hashes provide traceability—not independent truth verification.</p>
+<div class="foot">Generated by the local ThreatWeave test fixtures. No network connection, real customer data, or LLM inference was used to compute the report.</div>
+</main></body></html>

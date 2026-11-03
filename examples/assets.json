@@ -1,0 +1,32 @@
+[
+  {
+    "uuid": "demo-dev-001",
+    "hostname": "DEV-APP-001",
+    "operating_system": "Ubuntu 22.04",
+    "asset_type": "server",
+    "environment": "development",
+    "role": "developer_app",
+    "tags": [
+      "development"
+    ]
+  },
+  {
+    "uuid": "demo-prod-042",
+    "hostname": "PROD-ID-042",
+    "operating_system": "Windows Server 2022",
+    "asset_type": "server",
+    "tags": [
+      "identity"
+    ]
+  },
+  {
+    "uuid": "demo-ws-007",
+    "hostname": "USER-LAP-007",
+    "operating_system": "Windows 11",
+    "asset_type": "workstation",
+    "environment": "office",
+    "tags": [
+      "workstation"
+    ]
+  }
+]

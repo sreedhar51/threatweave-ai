@@ -1,0 +1,1 @@
+All runtime examples are generated in code by `threatweave.fixtures` and are entirely synthetic. Run `threatweave demo` to create local demo receipts. Do not replace these public fixtures with proprietary Tenable, ServiceNow, or CIS data.

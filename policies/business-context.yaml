@@ -1,0 +1,24 @@
+policy_id: business-context
+version: '1.0'
+rules:
+  - id: TW-PAYMENTS
+    name: Critical production payment service
+    when:
+      environment: production
+      business_tag: payments
+    then:
+      score_add: 24
+      priority_floor: high
+  - id: TW-COMPOUND
+    name: Corroborated vulnerability plus relevant CIS failure
+    when:
+      compounded_exposure: true
+    then:
+      score_add: 14
+  - id: TW-CRITICAL-EXPOSURE
+    name: Confirmed externally exposed critical vulnerability
+    when:
+      severity: critical
+      internet_exposure: confirmed
+    then:
+      priority_floor: urgent

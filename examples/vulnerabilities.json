@@ -1,0 +1,98 @@
+[
+  {
+    "asset": {
+      "uuid": "demo-dev-001"
+    },
+    "plugin": {
+      "id": 101,
+      "name": "Example Critical Software Library Vulnerability",
+      "solution": "Update example software library",
+      "vpr": {
+        "score": 9.4
+      },
+      "cve": [
+        "CVE-2099-0001"
+      ]
+    },
+    "severity": "critical",
+    "port": {
+      "port": 0,
+      "protocol": "tcp"
+    },
+    "status": "OPEN",
+    "software_family": "software_library",
+    "observed_at": "2026-11-02T12:00:00Z"
+  },
+  {
+    "asset": {
+      "uuid": "demo-dev-001"
+    },
+    "plugin": {
+      "id": 102,
+      "name": "Example Software Library Vulnerability",
+      "solution": "Update example software library",
+      "vpr": {
+        "score": 5.2
+      },
+      "cve": [
+        "CVE-2099-0002"
+      ]
+    },
+    "severity": "high",
+    "port": {
+      "port": 0,
+      "protocol": "tcp"
+    },
+    "status": "OPEN",
+    "software_family": "software_library",
+    "observed_at": "2026-11-02T12:00:00Z"
+  },
+  {
+    "asset": {
+      "uuid": "demo-prod-042"
+    },
+    "plugin": {
+      "id": 201,
+      "name": "Example Remote Administration Service Vulnerability",
+      "solution": "Update remote administration service",
+      "vpr": {
+        "score": 7.2
+      },
+      "cve": [
+        "CVE-2099-0010"
+      ]
+    },
+    "severity": "high",
+    "port": {
+      "port": 3389,
+      "protocol": "tcp"
+    },
+    "status": "OPEN",
+    "software_family": "remote_admin",
+    "observed_at": "2026-11-02T12:00:00Z"
+  },
+  {
+    "asset": {
+      "uuid": "demo-ws-007"
+    },
+    "plugin": {
+      "id": 301,
+      "name": "Example Workstation Vulnerability",
+      "solution": "Update example workstation application",
+      "vpr": {
+        "score": 5.9
+      },
+      "cve": [
+        "CVE-2099-0030"
+      ]
+    },
+    "severity": "medium",
+    "port": {
+      "port": 0,
+      "protocol": "tcp"
+    },
+    "status": "OPEN",
+    "software_family": "workstation_app",
+    "observed_at": "2026-11-02T12:00:00Z"
+  }
+]

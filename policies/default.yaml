@@ -1,0 +1,4 @@
+policy_id: default
+version: '1.0'
+# Vendor severity and VPR are preserved, used only as starting priority inputs.
+rules: []

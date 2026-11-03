@@ -1,0 +1,24 @@
+[
+  {
+    "asset_uuid": "demo-prod-042",
+    "compliance_full_id": "CIS-REMOTE-ADMIN",
+    "audit_file": "synthetic-Windows-2022.audit",
+    "title": "Example remote administration hardening check",
+    "status": "FAIL",
+    "expected_value": "restricted",
+    "actual_value": "permissive",
+    "severity": "medium",
+    "observed_at": "2026-11-02T12:00:00Z"
+  },
+  {
+    "asset_uuid": "demo-ws-007",
+    "compliance_full_id": "CIS-REMOTE-ADMIN",
+    "audit_file": "synthetic-Windows-11.audit",
+    "title": "Example workstation remote administration check",
+    "status": "FAIL",
+    "expected_value": "restricted",
+    "actual_value": "permissive",
+    "severity": "medium",
+    "observed_at": "2026-11-02T12:00:00Z"
+  }
+]

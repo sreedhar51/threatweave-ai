@@ -1,0 +1,7 @@
+.git
+.env
+runtime
+__pycache__
+.pytest_cache
+*.db
+*.parquet

@@ -1,0 +1,11 @@
+# Only deliberately mapped, same-asset relationships qualify.
+# Extend only with validated security-control relationships.
+rules:
+  - id: REL-REMOTE-ADMIN
+    software_family: remote_admin
+    control_id: CIS-REMOTE-ADMIN
+    rationale: "A failed control for this service may weaken defenses relevant to its vulnerability. Actual reachability is not established."
+  - id: REL-AUTH
+    software_family: authentication
+    control_id: CIS-AUTH-HARDENING
+    rationale: "The failed authentication-hardening control may compound the related service vulnerability. No attack path is established."
