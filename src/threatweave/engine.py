@@ -125,6 +125,7 @@ def create_receipt(store, policy, path=None):
     validate_policy(policy)
     result={'schema_version':'1.0','engine_version':'0.1.0',
             'dataset_hash':'sha256:'+store.snapshot_hash(),
+            'input_fingerprints':store.input_fingerprints(),
             'policy_hash':'sha256:'+digest(policy),
             'policy_id':policy['policy_id'],'policy_version':policy['version'],
             'rankings':rank_groups(store,policy),
@@ -166,9 +167,17 @@ def compare_receipts(before,after,limit=25):
     elif same_policy and not same_dataset: cause='source_data_or_context_changed'
     elif not same_dataset and not same_policy: cause='both_data_and_policy_changed_attribution_not_isolated'
     else: cause='no_input_change'
+    # Historical receipts may not contain per-input digests; preserve legacy
+    # comparisons and avoid fabricating a source-specific attribution.
+    a_inputs=after.get('input_fingerprints') or {}
+    b_inputs=before.get('input_fingerprints') or {}
+    evidence_changed=(sorted(k for k in b_inputs.keys() & a_inputs.keys()
+                             if b_inputs[k]!=a_inputs[k])
+                      if a_inputs and b_inputs else [])
     return {'before_receipt_id':before['receipt_id'],'after_receipt_id':after['receipt_id'],
             'dataset_unchanged':same_dataset,'policy_unchanged':same_policy,'change_type':cause,
-            'moved_group_count':len(movements),'top_movements':movements[:max(0,min(int(limit),100))]}
+            'moved_group_count':len(movements),'evidence_changed':evidence_changed,
+            'top_movements':movements[:max(0,min(int(limit),100))]}
 
 
 def evidence_for_group(store, gid, limit=25):
