@@ -1,0 +1,34 @@
+# Ordered, heuristic family classification for vulnerability exports lacking
+# software_family. First matching family wins; no match remains null.
+# Port-only matches are candidates, not proof that the affected package runs.
+families:
+  - name: openssh
+    matchers:
+      - cpe_prefix: 'cpe:/a:openbsd:openssh'
+      - cpe_prefix: 'cpe:2.3:a:openbsd:openssh'
+      - plugin_name_contains: 'openssh'
+  - name: openssl
+    matchers:
+      - cpe_prefix: 'cpe:/a:openssl:openssl'
+      - cpe_prefix: 'cpe:2.3:a:openssl:openssl'
+      - plugin_name_contains: 'openssl'
+  - name: windows_cumulative_update
+    matchers:
+      - solution_contains: 'cumulative update'
+      - plugin_name_contains: 'cumulative update'
+  - name: smb
+    matchers:
+      - port: 445
+  - name: remote_admin
+    matchers:
+      - port: 3389
+      - plugin_name_contains: 'remote administration service'
+  - name: software_library
+    matchers:
+      - plugin_name_contains: 'example software library'
+  - name: workstation_app
+    matchers:
+      - plugin_name_contains: 'example workstation'
+  - name: authentication
+    matchers:
+      - plugin_name_contains: 'authentication service'
