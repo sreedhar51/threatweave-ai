@@ -9,3 +9,18 @@ rules:
     software_family: authentication
     control_id: CIS-AUTH-HARDENING
     rationale: "The failed authentication-hardening control may compound the related service vulnerability. No attack path is established."
+  # Demonstration relationships. Validate applicability/benchmark semantics
+  # before treating any production correlation as an actionable exposure.
+  - id: REL-OPENSSH-ACCESS
+    software_family: openssh
+    control_id: [CIS-SSH-ACCESS, SSH-ACCESS-RESTRICTED]
+    control_title_contains: 'SSH access is limited'
+    rationale: 'Restricted SSH access may influence exposure of a vulnerable SSH service; reachability is not established.'
+  - id: REL-WINDOWS-GUEST
+    software_family: windows_cumulative_update
+    control_title_contains: 'Guest account status'
+    rationale: 'Guest account configuration may affect host defense posture; this is contextual, not proof the update vulnerability is exploitable.'
+  - id: REL-SMB-SIGNING
+    software_family: smb
+    control_title_contains: 'Digitally sign communications'
+    rationale: 'Disabled signing can weaken message integrity for an SMB service; exploitability and reachability are not proven.'
