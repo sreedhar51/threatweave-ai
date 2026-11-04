@@ -232,11 +232,16 @@ and why did it move?"*
 
 ### Claude Desktop or any MCP client
 
+Desktop clients are not started from your activated shell, so point `command` at the
+virtual environment's Python after installing the `mcp` extra into that environment.
+On Windows that is `.venv\Scripts\python.exe`; JSON needs each backslash doubled, for
+example `"C:\\path\\to\\threatweave-ai\\.venv\\Scripts\\python.exe"`.
+
 ```json
 {
   "mcpServers": {
     "threatweave": {
-      "command": "python",
+      "command": "/absolute/path/to/threatweave-ai/.venv/bin/python",
       "args": ["-m", "threatweave.mcp_server"],
       "env": {
         "THREATWEAVE_DB": "/absolute/path/to/threatweave-ai/runtime/demo.db",
