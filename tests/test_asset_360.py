@@ -80,3 +80,40 @@ def test_asset_360_counts_all_records_and_marks_truncation(tmp_path):
         assert asset_360(store,'does-not-exist',load_policy(ROOT/'policies/default.yaml')) is None
     finally:
         store.close()
+
+
+def test_enterprise_source_stays_separate_from_tenant_and_loads_correlations(tmp_path):
+    from shutil import copy2
+    from threatweave.data_sources import source_paths, load_enterprise_synthetic_isolated
+    import pytest
+
+    (tmp_path/'examples').mkdir()
+    (tmp_path/'policies').mkdir()
+    copy2(ROOT/'examples/enterprise-context-demo.json',
+          tmp_path/'examples/enterprise-context-demo.json')
+    copy2(ROOT/'policies/correlation-rules.yaml',
+          tmp_path/'policies/correlation-rules.yaml')
+    tenant=tmp_path/'runtime/tenant.db'
+    tenant.parent.mkdir(parents=True)
+    tenant.write_bytes(b'existing-tenant-evidence-do-not-change')
+    before=tenant.read_bytes()
+    assert source_paths(tmp_path,tenant)['Enterprise demo']!=tenant.resolve()
+    with pytest.raises(ValueError):
+        source_paths(tmp_path,tmp_path/'runtime/enterprise-demo.db')
+    reports=load_enterprise_synthetic_isolated(tmp_path,tenant)
+    assert [r['accepted'] for r in reports]==[5,5,2,4]
+    assert tenant.read_bytes()==before
+    enterprise=Store(tmp_path/'runtime/enterprise-demo.db')
+    try:
+        assert enterprise.count('assets')==5
+        assert enterprise.count('correlations')==2
+    finally:
+        enterprise.close()
+
+
+def test_streamlit_has_visible_asset_360_and_enterprise_loader():
+    app=(ROOT/'dashboard/app.py').read_text(encoding='utf-8')
+    assert 'Asset 360 · unified vulnerability, CIS and business evidence' in app
+    assert "key='asset360_pick'" in app
+    assert "key='load_enterprise_demo'" in app
+    assert "source=='Enterprise demo'" in app
