@@ -34,7 +34,7 @@ The Windows operator previously reported read-only Tenable VM ingestion of **1,3
 
 These figures are **operator-reported**, not independently re-tested by this GitHub documentation update. They are not production performance, attack-path, or remediation-outcome measurements. Avoid publishing real tenant identifiers, screenshots, exports or credentials. See [tenant preflight](TENANT_PREFLIGHT.md).
 
-## Security findings review — open gate
+## Historical Gitleaks review — local verification complete
 
 The contributor's local Gitleaks history scan reported **5 `generic-api-key` matches across 51 reachable commits**, returning **exit code 1**:
 
@@ -63,7 +63,7 @@ The PR #9 decision-brief and correlation-proposal additions are now part of `mai
 - **Data truth:** Unknown/missing evidence must remain unknown. Preserve source severity/VPR. Group priority scores may tie; deterministic tie-breaks are not independently calibrated risk probabilities.
 - **Read-only behavior:** No initiated scans, patches, tickets, security-control changes or vendor write-back. Security Center's read-only analysis may use an HTTP POST request, but it does not modify source findings.
 - **Not yet externally proven:** Cross-host exploit paths, full remediation verification, 250K-asset production capacity, live ServiceNow API, full Security Center tenant validation, customer time-savings estimates, and comprehensive interactive Claude/MCP interoperability.
-- **Before submission:** Finish the historical Gitleaks review, confirm eligibility and deadline/Discord process, validate the final Exchange listing/acceptance timestamp, and rehearse the end-to-end demo on the presentation machine. The Exchange PR is a separate submission to `tenable/cyberagents-exchange`, and Tenable approval is not implied.
+- **Exchange review:** The contributed listing is submitted separately to `tenable/cyberagents-exchange`; reviewer approval and any independently requested checks remain external to this repository. Rehearse the end-to-end demo on the presentation machine.
 
 ## Reproduce the baseline locally
 
