@@ -16,21 +16,18 @@ from threatweave.correlate import correlate,get_asset_exposure
 from threatweave.policy import load_policy,validate_policy
 from threatweave.engine import create_receipt,compare_receipts,rank_groups,evidence_for_group
 from threatweave.coverage import evidence_coverage
-from threatweave.data_sources import source_paths, load_synthetic_isolated, load_enterprise_synthetic_isolated
+from threatweave.data_sources import (source_paths, tenant_database_choices,
+    load_synthetic_isolated, load_enterprise_synthetic_isolated)
 from threatweave.utils import digest
 from threatweave.ui_workflows import (asset_choices, asset_360, asset_remediation_queue, rule_diff,
     add_drafted_rule_to_yaml, save_approved_policy, rank_replay,
     list_receipt_files, read_receipt)
 
 ROOT=Path(__file__).resolve().parents[1]
-TENANT_DB=Path(os.getenv('THREATWEAVE_DB',str(ROOT/'runtime/threatweave.db'))).resolve()
+CONFIGURED_TENANT_DB=os.getenv('THREATWEAVE_DB')
+DEFAULT_TENANT_DB=(ROOT/'runtime/tenant-lab.db').resolve()
 STAGED_DIR=(ROOT/'runtime/staged-ui').resolve()
-try:
-    DATA_PATHS=source_paths(ROOT,TENANT_DB)
-except ValueError as exc:
-    DATA_PATHS=None
-    SOURCE_ERROR=str(exc)
-DEMO_DB=DATA_PATHS['Synthetic demo'] if DATA_PATHS else (ROOT/'runtime/demo.db').resolve()
+DEMO_DB=(ROOT/'runtime/demo.db').resolve()
 RECEIPTS=Path(os.getenv('THREATWEAVE_RECEIPTS',str(ROOT/'runtime/receipts')))
 RUNTIME_POLICIES=ROOT/'runtime/policies'
 
@@ -122,19 +119,36 @@ st.caption('Evidence-backed exposure correlation · Organizational policy · Dec
 with st.sidebar:
     st.header('DataBridge')
     source=st.selectbox('Data source',['Tenant','Synthetic demo','Enterprise demo','Staged demo'],key='data_source')
+    try:
+        available_tenants=tenant_database_choices(ROOT,CONFIGURED_TENANT_DB)
+    except ValueError as exc:
+        st.error('Invalid tenant database configuration: '+str(exc))
+        st.stop()
+    if source=='Tenant':
+        if not available_tenants:
+            st.error('No existing tenant database found in runtime/. Import Tenable data into tenant-lab.db or set THREATWEAVE_DB to an existing .db file.')
+            st.stop()
+        selected_tenant=st.selectbox('Tenant database',available_tenants,
+                                     format_func=lambda p:p.name, key='selected_tenant_db')
+        st.caption('Existing local SQLite files only; selecting never imports or replaces data.')
+    else:
+        selected_tenant=available_tenants[0] if available_tenants else DEFAULT_TENANT_DB
+    TENANT_DB=selected_tenant
+    try:
+        DATA_PATHS=source_paths(ROOT,TENANT_DB)
+    except ValueError as exc:
+        st.error('Data-source isolation error: '+str(exc))
+        st.stop()
     if source=='Tenant':
         path=TENANT_DB
     elif source=='Synthetic demo':
         path=DEMO_DB
     elif source=='Enterprise demo':
-        path=DATA_PATHS['Enterprise demo'] if DATA_PATHS else (ROOT/'runtime/enterprise-demo.db').resolve()
+        path=DATA_PATHS['Enterprise demo']
     else:
         stage=st.selectbox('Stage',['Stage 1 · Vulnerabilities','Stage 2 · CIS','Stage 3 · CMDB'],index=2,key='selected_stage')
         stage_names=['stage1_vulnerabilities','stage2_plus_cis','stage3_plus_cmdb']
         path=STAGED_DIR/(stage_names[['Stage 1 · Vulnerabilities','Stage 2 · CIS','Stage 3 · CMDB'].index(stage)]+'.db')
-    if DATA_PATHS is None:
-        st.error(SOURCE_ERROR)
-        st.stop()
     DB=str(path)
     store=open_store(DB)
     st.caption('Source: '+('Authorized tenant data' if source=='Tenant' else 'Isolated synthetic data'))

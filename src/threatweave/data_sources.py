@@ -7,6 +7,34 @@ from .ingest import ingest_records
 from .correlate import correlate
 
 
+
+def tenant_database_choices(root, configured=None):
+    """Discover existing local tenant DB files without creating any database.
+
+    Synthetic fixture databases are excluded. An explicitly configured path can
+    be outside runtime but must exist, be a file and not be a synthetic source.
+    """
+    root=Path(root).resolve()
+    runtime=(root/'runtime').resolve()
+    excluded={(runtime/'demo.db').resolve(), (runtime/'enterprise-demo.db').resolve()}
+    staged=(runtime/'staged-ui').resolve()
+    configured_path=Path(configured).expanduser().resolve() if configured else None
+    if configured_path and (configured_path in excluded or configured_path.parent==staged):
+        raise ValueError('THREATWEAVE_DB cannot select a synthetic demonstration database')
+    if configured_path and (not configured_path.is_file() or configured_path.suffix.lower()!='.db'):
+        raise ValueError('THREATWEAVE_DB must point to an existing tenant SQLite .db file')
+    candidates=[]
+    if runtime.is_dir():
+        candidates=[p.resolve() for p in runtime.glob('*.db') if p.is_file() and not p.is_symlink()
+                    and p.resolve() not in excluded]
+    if configured_path and configured_path not in candidates:
+        candidates.append(configured_path)
+    choices=sorted(set(candidates),key=lambda p:(0 if configured_path and p==configured_path
+                                               else 1 if p.name=='tenant-lab.db'
+                                               else 2,p.name.lower(),str(p)))
+    return choices
+
+
 def source_paths(root, tenant_db):
     root=Path(root).resolve()
     tenant=Path(tenant_db).resolve()
