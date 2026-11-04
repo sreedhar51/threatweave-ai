@@ -181,11 +181,11 @@ Example JSON audit output:
     "OWASP_TOP_10_FOR_AGENTIC_APPLICATIONS_DEC_2025"
   ],
   "summary": {
-    "tested_controls": 10,
-    "tested_passed": 10,
+    "tested_controls": 6,
+    "tested_passed": 6,
     "tested_failed": 0,
-    "design_controls": 10,
-    "counts": "10 tested, 10 design"
+    "design_controls": 14,
+    "counts": "6 tested, 14 design"
   },
   "llm_top_10": {
     "LLM01_prompt_injection": { "status": "TESTED", "passed": true, ... },

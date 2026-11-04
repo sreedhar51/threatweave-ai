@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .policy import FIELDS, ACTIONS
 
-# Regex patterns for credential & sensitive information redacting (LLM02, ASI07)
 def _is_basic_credential(token: str) -> bool:
     """True only for a base64 value that decodes to printable 'user:password'."""
     if len(token) % 4:
@@ -26,6 +25,7 @@ def _is_basic_credential(token: str) -> bool:
     return ':' in decoded and decoded.isprintable()
 
 
+# Regex patterns for credential & sensitive information redacting (LLM02, ASI07)
 SECRET_PATTERNS = [
     # Basic Authentication (e.g. ServiceNow connector)
     (re.compile(r'(?i)authorization:\s*basic\s+[a-zA-Z0-9+/=]{8,}'), 'Authorization: Basic [REDACTED_BASIC_AUTH]'),
