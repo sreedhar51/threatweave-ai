@@ -21,6 +21,8 @@ ThreatWeave correlates authorized Tenable vulnerability findings with relevant f
 
 ## Architecture
 
+![ThreatWeave AI architecture — evidence sources, correlation, policy, and DecisionTrace](docs/architecture-diagram.svg)
+
 | Component | Responsibility |
 | --- | --- |
 | **Ingestion and evidence store** | Normalize authorized findings, retain provenance and preserve Tenable asset identity |
