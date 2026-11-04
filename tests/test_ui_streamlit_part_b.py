@@ -34,6 +34,8 @@ def test_app_ui_tenant_synthetic_staged(tmp_path,monkeypatch):
 
     at.selectbox(key='data_source').set_value('Staged demo').run()
     assert not at.exception
+    at.radio(key='replay_mode').set_value('Staged evidence (synthetic)').run()
+    assert not at.exception
     at.button(key='run_stages').click().run()
     assert not at.exception
     assert len(at.dataframe)>0
