@@ -34,6 +34,79 @@ def asset_choices(store, group_id=None, hostname_query='', limit=100):
     return store.rows(sql, tuple(params+[limit]))
 
 
+
+def asset_360(store, asset_id, policy, *, limit=200):
+    """Read-only asset dossier; UUID selects one asset, hostname is display-only.
+
+    Rows are bounded but counts cover all findings for the authoritative UUID.
+    Links are explicit same-asset, rule-qualified CIS correlations, not attack paths.
+    """
+    from .correlate import get_asset_exposure
+    from .policy import validate_policy
+
+    validate_policy(policy)
+    limit = max(1, min(int(limit), 200))
+    exposure = get_asset_exposure(store, asset_id, limit=limit, policy=policy)
+    if not exposure['asset']:
+        return None
+
+    counts = store.rows(
+        """SELECT kind, upper(coalesce(status,'UNKNOWN')) AS status, COUNT(*) AS count
+           FROM findings WHERE asset_id=? GROUP BY kind,upper(coalesce(status,'UNKNOWN'))
+           ORDER BY kind,status""", (asset_id,))
+    totals = {
+        'vulnerabilities': sum(r['count'] for r in counts if r['kind'] == 'vulnerability'),
+        'cis_findings': sum(r['count'] for r in counts if r['kind'] == 'compliance'),
+        'cis_failed': sum(r['count'] for r in counts
+                          if r['kind'] == 'compliance' and r['status'] in ('FAIL','FAILED','NON_COMPLIANT')),
+        'cis_passed': sum(r['count'] for r in counts
+                          if r['kind'] == 'compliance' and r['status'] in ('PASS','PASSED','COMPLIANT')),
+        'cis_hygiene': sum(r['count'] for r in counts
+                           if r['kind'] == 'compliance' and r['status'] in ('WARNING','ERROR')),
+        'correlations': store.db.execute(
+            'SELECT COUNT(*) FROM correlations WHERE asset_id=?', (asset_id,)).fetchone()[0],
+        'verified_cmdb': len(exposure['cmdb']),
+    }
+    evaluations = {x['finding_id']: x for x in exposure['finding_evaluations']}
+    rows = []
+    for f in exposure['findings']:
+        evaluation = evaluations.get(f['finding_id'], {})
+        rows.append({
+            'finding_id': f['finding_id'], 'source_kind': f['kind'],
+            'title': f['title'], 'status': f['status'],
+            'scanner_severity': f['severity'], 'scanner_vpr': f['vpr'],
+            'contextual_score': evaluation.get('contextual_score'),
+            'contextual_priority': evaluation.get('contextual_priority'),
+            'matched_rules': ', '.join(evaluation.get('matched_rules', [])),
+            'evidence_flags': ', '.join(evaluation.get('evidence_flags', [])),
+        })
+    groups = store.rows(
+        """SELECT f.group_id, COUNT(*) AS findings, MIN(f.kind) AS kind
+           FROM findings f WHERE f.asset_id=? AND f.group_id IS NOT NULL
+           GROUP BY f.group_id ORDER BY findings DESC, f.group_id LIMIT 25""", (asset_id,))
+    # Hostname/IP never used as a join key: two identical hostnames stay separate.
+    hostname = exposure['asset'].get('hostname')
+    same_hostname = store.db.execute(
+        'SELECT COUNT(*) FROM assets WHERE hostname=?', (hostname,)).fetchone()[0] if hostname else 0
+    return {
+        'asset': exposure['asset'],
+        'counts': totals,
+        'status_counts': counts,
+        'displayed_findings': len(rows),
+        'total_findings': totals['vulnerabilities'] + totals['cis_findings'],
+        'truncated': len(rows) < totals['vulnerabilities'] + totals['cis_findings'],
+        'findings': rows,
+        'vulnerabilities': [x for x in rows if x['source_kind']=='vulnerability'],
+        'cis': [x for x in rows if x['source_kind']=='compliance'],
+        'correlated_cis_evidence': exposure['correlated_cis_evidence'],
+        'cmdb': exposure['cmdb'],
+        'fix_group_refs': groups,
+        'same_hostname_asset_count': same_hostname,
+        'identity_note': 'Authoritative UUID is the grouping key; hostname is display/search only.',
+        'reachability_note': exposure['cross_asset_attack_path'],
+    }
+
+
 def rule_diff(active, proposed):
     """Diff rules by stable ID, distinguishing changed definitions from additions."""
     validate_policy(active)
