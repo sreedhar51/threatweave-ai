@@ -1,88 +1,78 @@
-# ThreatWeave AI — implementation and verification status
+# ThreatWeave AI — build and verification status
 
-Updated: November 3, 2026. Baseline PR #1 has been merged into `main`; new UI/performance Part A work is on branch `feat/swarm-ui-evidence-performance`. Historical verification notes below describe earlier checkpoints.
+**Updated:** 2026-11-04  
+**Primary source:** `main` at `5e4771cc22594e3c0c562a8d6a00c713b984d863`  
+**Purpose:** current implementation status and remaining verification gates. Earlier milestone counts and pre-merge notes are superseded; Git history and past PRs retain their details.
 
-## Verified locally
+## Current release snapshot
 
-- **40 automated tests passed**, including the original **18** unmodified tests, the 13 regression tests from changes 6–9, and 5 new Tenable preflight/schema tests. Run: `PYTHONPATH=src pytest -q`.
-- Three-stage demo with unchanged policy returns `evidence_changed: ["compliance", "correlations"]` when CIS evidence is added and `["cmdb"]` when verified CI mapping is added.
-- 5,000-asset synthetic staged run completed in the previous review; no production throughput certification.
-- Family classification covers common Tenable metadata when `software_family` is absent; conservative same-asset vulnerability/CIS links require an explicit mapping rule.
-- CMDB proposal CSV performs FQDN/hostname unique-match suggestions, **never IP matching**, and leaves `mapping_verified` blank for human confirmation.
-- Read-only `.nessus` streaming XML parser rejects `DOCTYPE` / `ENTITY`, handles two hosts sharing one IP as distinct identities, retains PASS/FAIL/WARNING/ERROR compliance outcomes, and skips severity-0 informational vulnerability plugins.
-- Read-only Tenable Security Center analysis client tested with `httpx.MockTransport` for synchronous pagination, API-key header, normalized records and source-identity constraints.
-- Asset-level policy view reuses existing ContextIQ evaluation and preserves the default `get_asset_exposure()` result when no policy is supplied.
-- SQLite overview reports compliance status counts and separate WARNING/ERROR scan-hygiene counts.
-- Streamlit code passes Python syntax compilation, but not an interactive browser test.
+| Area | Status | Verified scope / limitations |
+| --- | --- | --- |
+| Evidence ingestion (DataBridge) | **Implemented** | Authorized files: CSV, JSON, JSONL/NDJSON, Nessus; read-only Tenable VM asynchronous exports. Live VM ingest has been reported from an authorized Windows Partner Lab; current tenant behavior must be checked separately. |
+| On-prem Security Center | **Implemented adapter; mock-tested** | Read-only analysis with pagination and bounded retries; live Security Center API semantics and permissions remain tenant-dependent and unverified here. |
+| CIS and exposure correlation | **Implemented** | Requires relevant vetted software-family/control relationship and the same verified asset identity; correlation is *not* a validated attack path. |
+| CMDB context | **Implemented via reviewed import** | CSV/JSON ServiceNow-style exports with human-approved mapping to Tenable asset UUIDs. **No live ServiceNow Table API synchronization.** |
+| ContextIQ policy engine | **Implemented** | Deterministic policy priorities preserve original Tenable severity and VPR. Rules and context need human review. |
+| Fix Groups | **Implemented as candidates** | Grouping identifies potential remediation work; it does not certify a single patch, fix applicability or reduced risk. |
+| Decision Receipts and Replay | **Implemented** | Evidence/policy fingerprints, source references, reproducible priority results, and before/after differences. |
+| Streamlit dashboard | **Implemented; automated checks passed** | Isolated tenant/synthetic/staged modes, evidence coverage, policy review, group investigation and replay. Manual browser/demo validation on the presentation machine remains a separate step. |
+| Guided/Claude agent and MCP | **Implemented; optional** | Bounded read-only evidence tools and human-gated policy drafts. Claude requires separately configured credentials; validate actual Claude/MCP client interoperability before demonstrating it. |
+| OWASP-aligned safeguards | **Implemented with regression coverage** | Untrusted evidence boundaries, redaction, bounded tools/outputs and policy draft validation; no claim of formal OWASP certification or a comprehensive external audit. |
+| Exchange listing | **Prepared in contributor fork** | `sreedhar51/cyberagents-exchange` branch `add-threatweave-ai`, file `agents/threatweave-ai.md`. Preparation is **not** Tenable approval or public Exchange listing. |
 
-## Partner Lab connectivity preflight (November 3, 2026)
+## Automated verification — latest confirmed main
 
-- The authorized VM endpoint is `https://cloud.tenable.com`. A separate live connection from this execution environment failed at DNS resolution, **before authentication**. Tenant reachability, credentials, permissions, number of accessible records, and optional compliance evidence remain **unverified**.
-- `scripts/tenant_preflight.py` performs two documented read-only GET requests with *locally injected, rotated credentials*: `/assets` and `/workbenches/vulnerabilities`. It prints only aggregate coverage information and never raw asset identifiers or keys.
-- Optional `--check-compliance` initiates a read-only, asset-filtered compliance export on one visible asset and checks status and aggregate results. Avoid confusing an empty single-asset sample with evidence that the tenant lacks compliance support.
-- Mapping fixes covered current Tenable documented `check_name`, `asset.id`, and list-valued asset hostname fields. Mocked schema tests pass. No live payloads were read.
-- The password and keys shown in a user-provided screenshot must be rotated before use. No credentials were written to source or test fixtures.
-- Instructions: [`docs/TENANT_PREFLIGHT.md`](TENANT_PREFLIGHT.md).
+- GitHub Actions for `5e4771cc22594e3c0c562a8d6a00c713b984d863`: **137 tests passed** on Python **3.11 and 3.12** in the `Offline regression tests` workflow.
+- CI also completed the deterministic **three-run repeatability/evidence provenance** gate and the synthetic CLI demo smoke test successfully for both Python versions.
+- GitHub Actions CodeQL checks were reported successful for this `main` revision. **CodeQL is not a Git-history credential scan.**
+- Reference workflows: [offline tests](https://github.com/sreedhar51/threatweave-ai/actions/runs/41785166595) and [main workflow runs](https://github.com/sreedhar51/threatweave-ai/actions).
+- CI checks are repository-level automated evidence, not a guarantee of successful authenticated operation in a particular vendor tenant or a measured production throughput.
 
-## Implemented but NOT verified live
+## Authorized partner-lab evidence — operator reported
 
-- Tenable VM asynchronous export: mocked API test only, **no live SWARM tenant access**.
-- Tenable Security Center: mocked API only, **requires an authorized on-prem tenant to validate exact response schema, permissions and pagination**. The endpoint is synchronous; export conservatively to avoid console load.
-- ServiceNow CMDB: CSV/JSON export and human-approved ID mapping only. **No live ServiceNow Table API connector**.
-- `.nessus` fixtures are synthetic, not licensed CIS audits or proprietary organizational data. Audit-content variations beyond tested Nessus-v2 fields require validation.
-- Streamlit dashboard, Anthropic Claude and MCP SDK in a live user environment; optional dependencies may not be present.
-- Real-world high-volume memory use, export performance, authenticated scans, actual remediation outcomes and cross-host network reachability.
+The Windows operator previously reported read-only Tenable VM ingestion of **1,394 assets, 18,974 vulnerabilities and 4,483 compliance findings** without ingestion rejections, followed by **2,863 candidate same-asset correlations** and a **5,909-group Decision Receipt**. The operator also reported successful repeatability on that dataset.
 
-## Known scoring limitation (intentionally unchanged)
+These figures are **operator-reported**, not independently re-tested by this GitHub documentation update. They are not production performance, attack-path, or remediation-outcome measurements. Avoid publishing real tenant identifiers, screenshots, exports or credentials. See [tenant preflight](TENANT_PREFLIGHT.md).
 
-A Fix Group's score is the maximum member finding score, **capped at 100**. At scale, groups can therefore tie. Current tie breakers retain deterministic ordering but do not imply distinct underlying risk. We intentionally preserved the existing scoring algorithm and policy DSL rather than creating a competing scoring system.
+## Security findings review — open gate
 
-## Identity and safety invariants
+The contributor's local Gitleaks history scan reported **5 `generic-api-key` matches across 51 reachable commits**, returning **exit code 1**:
 
-- Only verified CMDB-to-Tenable UUID mappings affect contextual priorities.
-- Never match or merge unrelated assets by IP address. If a Security Center finding has no `hostUUID`, it uses a per-finding opaque `sc-unresolved-*` identity. This intentionally **differs from an IP-based fallback** to uphold the non-merging guardrail.
-- Preserve source severity and VPR. No Tenable/SC/ServiceNow writes; HTTP POST to SC `/rest/analysis` performs a read-only query.
-- CIS FAIL + vulnerability must satisfy an explicit matching rule on the **same asset** before correlation; an attack path is never asserted based on scan data alone.
-- Unknown audit file is retained as `unknown-audit-file` and should be treated as incomplete evidence, not an authoritative CIS benchmark assertion.
+- **2** matches in historical OWASP documentation rows concerning credential scrubbing.
+- **3** matches in historical synthetic secret-scrubber test cases.
+- Current assessment: **likely documentation/synthetic false positives**, not confirmed real credentials. The full five-row inventory and evidence limits are in [Gitleaks findings review](GITLEAKS_FINDINGS_REVIEW.md).
+- **Do not label the repository secret-scan-clean yet.** Confirm the findings and obtain Tenable review guidance; any historical credentials separately disclosed outside Git still require rotation confirmation. No allowlist or history rewrite has been performed.
 
-## Before Exchange submission
+## GitHub integration / roadmap status
 
-Confirm contest eligibility and deadline, validate authorized tenant export, run the complete tests on Python 3.11+, launch UI and MCP client, capture a demo video, review the submission listing against current Exchange requirements, and complete the contribution agreement as an authorized eligible participant. A public GitHub repository alone is not an Exchange submission.
+| Workstream | Status on 2026-11-04 |
+| --- | --- |
+| PR #1 — baseline evidence architecture | Merged |
+| PR #3 — security/OWASP guardrails | Merged |
+| PR #4 — UI evidence/performance | Merged |
+| PR #6 — Claude-native agent, command-line, Claude Code support | **Merged** |
+| PR #7 — architecture diagram and UI/guardrail refinements | Merged |
+| PR #8 — Exchange listing draft rewrite | Merged |
+| PR #9 — Claude decision briefs and correlation proposals | **Merged** |
 
-## Tenable documentation and API-guidance review (Nov 3, 2026)
+The PR #9 decision-brief and correlation-proposal additions are now part of `main`; maintain human approval boundaries and treat any proposals as unverified until reviewed. Branch-specific work and historical snapshots are not the release baseline.
 
-- Confirmed the official integration kickstart, Vulnerability Management bulk export, Security Center synchronous analysis, pyTenable and User-Agent guidance.
-- Updated VM/SC request headers to the documented standard integration User-Agent. The default VM asset export now requests 4,000 assets per chunk. VM export polling recognizes `FAILED` as a terminal failure.
-- Security Center analysis now excludes WAS findings by default and uses sequential bounded retry on 429/502/503/504 responses. The client never writes to Security Center.
-- Added four mocked API regression tests; **40 tests passed** locally. The updated code has **not been run on the user's laptop**, authenticated against the Partner Lab, or validated for live SC API semantics.
-- For Windows laptop connection tests and safe hidden credential entry, see `docs/TENANT_PREFLIGHT.md`.
+## Known boundaries and pending checks
 
-## SWARM workshop hardening (November 3, 2026)
+- **Safety/identity:** Do not merge assets by matching IP/hostname alone; only explicitly verified CMDB asset UUIDs affect priority. A Security Center record missing authoritative host UUID remains unresolved. Failed CIS checks require a relevant correlation rule; WARNING/ERROR do not imply FAIL.
+- **Data truth:** Unknown/missing evidence must remain unknown. Preserve source severity/VPR. Group priority scores may tie; deterministic tie-breaks are not independently calibrated risk probabilities.
+- **Read-only behavior:** No initiated scans, patches, tickets, security-control changes or vendor write-back. Security Center's read-only analysis may use an HTTP POST request, but it does not modify source findings.
+- **Not yet externally proven:** Cross-host exploit paths, full remediation verification, 250K-asset production capacity, live ServiceNow API, full Security Center tenant validation, customer time-savings estimates, and comprehensive interactive Claude/MCP interoperability.
+- **Before submission:** Finish the historical Gitleaks review, confirm eligibility and deadline/Discord process, validate the final Exchange listing/acceptance timestamp, and rehearse the end-to-end demo on the presentation machine. The Exchange PR is a separate submission to `tenable/cyberagents-exchange`, and Tenable approval is not implied.
 
-- Added three independent clean staged-demo acceptance executions with exact stable Decision Receipt comparison, fingerprints and policy-invariant checks; failures exit nonzero.
-- Added six automated tests for release gate, oversized agent-response handling and negative controls. Local regression suite: **46 passed**.
-- Added minimal `CLAUDE.md` / `AGENTS.md`, a SWARM-readiness checklist and CI repeatability check. These are not Exchange Inspector vetting.
-- Oversized Claude tool responses now return valid structured `TRUNCATED` JSON instead of invalid fragments. No new scorer, vendor writes or cross-host inferences.
-- Performance was checked synthetically at 5,000 generated assets per stage. No certified live tenant throughput, customer outcomes, real-world time-saved measurement or Exchange approval claim.
+## Reproduce the baseline locally
 
-## Authorized Partner Lab verification reported from Windows laptop
+~~~powershell
+python -m pip install -e ".[dev,ui]"
+python -m pytest -q
+python scripts/ship_check.py --repeat 3
+python -m threatweave.cli --db runtime/demo-cli.db demo
+python -m streamlit run dashboard/app.py
+~~~
 
-After the initial build-status checkpoints, the authorized test-lab operator reported successful read-only Tenable VM authentication and ingestion of 1,394 asset records, 18,974 vulnerability records, and 4,483 compliance records (zero ingestion rejections); 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt (`DR-558889ccdbeb9ddb`) reproduced byte-for-byte after excluding the generation timestamp. Python 3.13 Windows tests: 46 passed on the merged baseline. These were **user-reported laptop test outputs**, not independently reproduced from the build environment. Correlation-rule quality, verified CMDB mappings, UI AppTest, and production throughput remain unverified.
-
-## UI and performance Part A checkpoint (November 3, 2026)
-
-- New review branch `feat/swarm-ui-evidence-performance` isolates tenant, synthetic fixture, and staged UI SQLite databases. The synthetic loader cannot write to a tenant database; staged rebuilds close cached SQLite connections before recreating files on Windows.
-- Added idempotent `findings.group_id` migration, batched backfill (5,000 rows), and indexed group evidence lookup. Correlation `vuln_id` / `asset_id` access is indexed.
-- Cached read-only dashboard aggregation and ranking by selected database, row-count / ingest-run version hints, and policy hash; no new receipt creation occurs unless the user requests it. **Known limitation:** external in-place updates that preserve row counts may require clearing the app cache; this is a presentation cache, not a Decision Receipt fingerprint.
-- Added source and evidence coverage panels, read-only vendor severity/VPR group maxima, and optional 0 / 5,000 / 50,000 synthetic staged runs with stage timings. Original contextual policy scoring and deterministic tie order remain unchanged.
-- Measured locally with `python scripts/bench.py --assets 50000` on Python 3.13.5 and synthetic fixtures (single execution, not production throughput): **50,000 assets, 50,000 vulnerabilities, 8,334 compliance findings, 4,167 CMDB records**, 8,334 candidate correlations, 3 fix groups. Elapsed times: **ingest 4.650s, correlate 0.168s, rank_groups 1.507s, indexed evidence_for_group 0.000341s**. Machine-specific measurements; no implication of equivalent results on a Windows laptop or a 250,000-asset estate.
-- Offline tests: **51 passed** (46 original + 5 added Part A checks); three-run synthetic ship-check passes. Browser-level Streamlit AppTest not executed in this environment because Streamlit is not installed; run on the user's local UI-enabled Python environment before merge. A manually verified 50,000-asset staged UI session is also outstanding.
-- Parts B/C/D, including policy approvals, richer replay and OWASP PR #3, are intentionally **not implemented** in this checkpoint. OWASP PR #3 is open, not merged into `main` at branch creation.
-
-## Part B dashboard workflow (November 3, 2026)
-
-- User interface: source-evidence tables, hostname and group-scoped asset picker, contextual finding/evidence breakdown, side-by-side before/after rank chart, explicit contribution deltas, versioned local policy approval, and ingestion freshness history.
-- **Breaking ranking-order-only change:** score ties now rank by compounded assets, verified critical assets, production assets, total assets, finding count, and stable fix-group ID, in that order. Finding scoring, source values, and correlation rules remain unchanged. Receipt IDs and ranks can therefore differ from previous releases even when source data is identical.
-- `ingest_runs` was previously defined but unused; migration adds `started_at` and `finished_at`, and every completed `ingest_records` import writes its accepted/rejected summary. Imported history does not change source fingerprints.
-- Local regression tests and repeatability gate must be rerun against this branch. Streamlit AppTest is included as an optional integration test requiring the `ui` extra. Interactive laptop browser coverage is not established by Python compilation.
-- This stage does **not** integrate OWASP guardrails PR #3 (a separate open branch), and does not change live Tenable or ServiceNow via API.
+Optional connectors require their documented dependencies and configuration; use synthetic evidence for public demos. See [README](../README.md), [SWARM readiness](SWARM_READINESS.md), [architecture](ARCHITECTURE.md), and [submission checklist](SUBMISSION_CHECKLIST.md).
