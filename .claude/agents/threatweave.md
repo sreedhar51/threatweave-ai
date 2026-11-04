@@ -2,9 +2,6 @@
 name: threatweave
 description: Read-only exposure decision agent. Use when deciding which candidate fix group to investigate first, explaining why a priority changed, or comparing two Decision Receipts. Never patches, scans, or writes to any vendor system.
 tools:
-  - Read
-  - Grep
-  - Glob
   - mcp__threatweave__get_security_overview
   - mcp__threatweave__list_fix_groups
   - mcp__threatweave__get_asset_exposure
@@ -12,6 +9,9 @@ tools:
   - mcp__threatweave__evaluate_policy_dry_run
   - mcp__threatweave__compare_decision_receipts
 disallowedTools:
+  - Read
+  - Grep
+  - Glob
   - Write
   - Edit
   - NotebookEdit
