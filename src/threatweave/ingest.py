@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 from .utils import canonical, digest, numeric
+from .software import classify_family
 
 
 def get(obj, *paths):
@@ -40,7 +41,7 @@ def tags(raw):
 def record_asset(record, source="tenable"):
     uid=get(record,'uuid','asset.uuid','asset_id','asset_uuid','id')
     if not uid: raise ValueError('Asset UUID is required; refusing fuzzy identity matching')
-    hostname=get(record,'hostname','hostnames','fqdn','name')
+    hostname=get(record,'hostname','hostnames','fqdn','fqdns','name')
     if isinstance(hostname,list): hostname=hostname[0] if hostname else None
     os_name=get(record,'operating_system','operating_systems','os','os_name')
     if isinstance(os_name,list): os_name=os_name[0] if os_name else None
@@ -56,7 +57,7 @@ def record_asset(record, source="tenable"):
 
 def record_finding(record, kind='vulnerability', source='tenable'):
     kind = 'compliance' if kind in {'compliance','cis'} else 'vulnerability'
-    asset_id=get(record,'asset.uuid','asset_uuid','asset_id','tenable_asset_uuid')
+    asset_id=get(record,'asset.uuid','asset.id','asset_uuid','asset_id','tenable_asset_uuid')
     if not asset_id: raise ValueError('Finding missing authoritative Tenable asset UUID')
     plugin_id=get(record,'plugin.id','plugin_id')
     port=get(record,'port.port','port')
@@ -79,7 +80,7 @@ def record_finding(record, kind='vulnerability', source='tenable'):
     status=str(get(record,'status','state','compliance_result') or ('FAIL' if kind=='compliance' else 'OPEN')).upper()
     vpr=numeric(get(record,'plugin.vpr','vpr'))
     solution=get(record,'plugin.solution','solution','remediation')
-    title=get(record,'plugin.name','title','name','control_title') or str(control_id or plugin_id)
+    title=get(record,'plugin.name','check_name','title','name','control_title') or str(control_id or plugin_id)
     output=get(record,'output','plugin_output','evidence') or ''
     # Only a bounded excerpt is stored; source record hashes preserve import provenance.
     excerpt=str(output)[:1200]
@@ -89,7 +90,8 @@ def record_finding(record, kind='vulnerability', source='tenable'):
             'port':port,'protocol':proto,'cves':cves,'status':status,
             'observed_at':get(record,'scan.last_found','scan.last_seen','last_found','last_seen','observed_at'),
             'solution':str(solution) if solution else None,
-            'software_family':get(record,'software_family'),
+            'software_family':(get(record,'software_family')
+                               or (classify_family(record) if kind=='vulnerability' else None)),
             'control_id':str(control_id) if control_id else None,
             'expected_value':get(record,'expected_value','expected'),
             'actual_value':get(record,'actual_value','actual'),

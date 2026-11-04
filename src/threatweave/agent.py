@@ -17,12 +17,25 @@ prerequisites. Original Tenable scores are not modified. Do not reveal API keys.
 Policy edits are drafts requiring human approval and deterministic validation.
 Respond with clear reasons and cite local finding IDs when possible.'''
 
+# Explicit allowlist: only evidence retrieval. No shell, filesystem mutation,
+# network search, security-control changes, or source-system writes.
 TOOLS=[
  {'name':'get_overview','description':'Inspect source coverage and counts','input_schema':{'type':'object','properties':{}}},
  {'name':'list_fix_groups','description':'List up to 10 ranked remediation candidate groups','input_schema':{'type':'object','properties':{'limit':{'type':'integer','minimum':1,'maximum':10}}}},
  {'name':'get_asset_exposure','description':'Retrieve evidence for one asset ID','input_schema':{'type':'object','properties':{'asset_uuid':{'type':'string'}},'required':['asset_uuid']}},
  {'name':'get_group_evidence','description':'Retrieve bounded evidence for one fix group','input_schema':{'type':'object','properties':{'fix_group_id':{'type':'string'}},'required':['fix_group_id']}}
 ]
+
+
+def _bounded_tool_result(value, *, max_chars=16000):
+    """Always return valid JSON; truncation must not fabricate an evidence summary."""
+    raw=json.dumps(value,default=str,sort_keys=True)
+    if len(raw)<=max_chars:
+        return raw
+    return json.dumps({'status':'TRUNCATED','evidence_complete':False,
+                       'original_json_characters':len(raw),
+                       'message':'Tool result exceeds evidence budget. Narrow the investigation; do not conclude from omitted data.'},
+                      sort_keys=True)
 
 
 def _client():
@@ -55,7 +68,7 @@ def investigate(question,db_path,policy_path,model=None):
                 elif call.name=='get_asset_exposure': result=retrieve_asset(db_path,call.input['asset_uuid'])
                 elif call.name=='get_group_evidence': result=retrieve_group_evidence(db_path,call.input['fix_group_id'],10)
                 else: raise ValueError('Tool not permitted')
-                payload=json.dumps(result,default=str)[:16000]
+                payload=_bounded_tool_result(result)
             except (ValueError,KeyError) as error:
                 payload=json.dumps({'error':str(error)})
             results.append({'type':'tool_result','tool_use_id':call.id,'content':payload})

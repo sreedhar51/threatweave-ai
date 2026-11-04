@@ -9,3 +9,5 @@ build/
 *.parquet
 runtime/
 export_*.json
+# Keep synthetic Nessus test fixtures available even if *.nessus is ignored.
+!tests/fixtures/*.nessus
