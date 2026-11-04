@@ -23,13 +23,16 @@ from conftest import ROOT
 
 # ---------------------------------------------------------------------
 # Item 8 & 15: Secret scrubber tests
+# Assemble synthetic key-shaped values from fragments so the source file itself
+# does not contain standalone realistic-looking credentials. Runtime test inputs
+# remain byte-for-byte equivalent to the original fixture strings.
 # ---------------------------------------------------------------------
 
 def test_scrub_secrets_comprehensive():
     raw_texts = [
-        ("Secret key: sk-ant-api03-abcdef12345678901234567890xyz", "[REDACTED_ANTHROPIC_KEY]"),
-        ("OpenAI key: sk-1234567890abcdef1234567890abcdef", "[REDACTED_API_KEY]"),
-        ("accesskey=abcdef1234567890; secretkey=1234567890abcdef;", "accesskey=[REDACTED_TENABLE_KEY]; secretkey=[REDACTED_TENABLE_KEY];"),
+        ("Secret key: " + "sk-ant-" + "api03-" + "abcdef1234" + "5678901234567890xyz", "[REDACTED_ANTHROPIC_KEY]"),
+        ("OpenAI key: " + "sk-" + "1234567890abcdef" + "1234567890abcdef", "[REDACTED_API_KEY]"),
+        ("accesskey=" + "abcdef12" + "34567890; secretkey=" + "12345678" + "90abcdef;", "accesskey=[REDACTED_TENABLE_KEY]; secretkey=[REDACTED_TENABLE_KEY];"),
         ("TENABLE_SECRET_KEY=secret_tenable_value_here", "TENABLE_SECRET_KEY=[REDACTED_KEY]"),
         ("ANTHROPIC_API_KEY='secret_anthropic_value_here'", "ANTHROPIC_API_KEY='[REDACTED_KEY]'"),
         ("Authorization: Bearer my-super-secret-token-1234567890", "Bearer [REDACTED_TOKEN]"),
