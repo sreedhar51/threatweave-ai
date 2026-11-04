@@ -46,7 +46,10 @@ def asset_360(store, asset_id, policy, *, limit=200):
 
     validate_policy(policy)
     limit = max(1, min(int(limit), 200))
-    exposure = get_asset_exposure(store, asset_id, limit=limit, policy=policy)
+    # Load the identity/approved CMDB through the existing helper, but fetch
+    # bounded vulnerability and CIS evidence independently. Ordering combined
+    # findings by kind used to hide ALL vulnerabilities on CIS-heavy assets.
+    exposure = get_asset_exposure(store, asset_id, limit=1, policy=None)
     if not exposure['asset']:
         return None
 
@@ -67,19 +70,30 @@ def asset_360(store, asset_id, policy, *, limit=200):
             'SELECT COUNT(*) FROM correlations WHERE asset_id=?', (asset_id,)).fetchone()[0],
         'verified_cmdb': len(exposure['cmdb']),
     }
-    evaluations = {x['finding_id']: x for x in exposure['finding_evaluations']}
+    from .engine import _contexts, _risk_context
+    from .policy import evaluate_finding
+    per_kind = max(1, limit // 2)
+    correlated_ids = {r['vuln_id'] for r in store.db.execute(
+        'SELECT DISTINCT vuln_id FROM correlations WHERE asset_id=?', (asset_id,))}
+    mapped = _contexts(store)
     rows = []
-    for f in exposure['findings']:
-        evaluation = evaluations.get(f['finding_id'], {})
-        rows.append({
-            'finding_id': f['finding_id'], 'source_kind': f['kind'],
-            'title': f['title'], 'status': f['status'],
-            'scanner_severity': f['severity'], 'scanner_vpr': f['vpr'],
-            'contextual_score': evaluation.get('contextual_score'),
-            'contextual_priority': evaluation.get('contextual_priority'),
-            'matched_rules': ', '.join(evaluation.get('matched_rules', [])),
-            'evidence_flags': ', '.join(evaluation.get('evidence_flags', [])),
-        })
+    for kind in ('vulnerability', 'compliance'):
+        for record in store.db.execute(
+            """SELECT * FROM findings WHERE asset_id=? AND kind=?
+               ORDER BY finding_id LIMIT ?""", (asset_id,kind,per_kind)):
+            f=dict(record)
+            context = _risk_context(exposure['asset'], mapped, f,
+                                    f['finding_id'] in correlated_ids)
+            evaluation = evaluate_finding(f, context, policy)
+            rows.append({
+                'finding_id': f['finding_id'], 'source_kind': f['kind'],
+                'title': f['title'], 'status': f['status'],
+                'scanner_severity': f['severity'], 'scanner_vpr': f['vpr'],
+                'contextual_score': evaluation['score'],
+                'contextual_priority': evaluation['priority'],
+                'matched_rules': ', '.join(c['rule_id'] for c in evaluation['contributions']),
+                'evidence_flags': ', '.join(evaluation['evidence_flags']),
+            })
     groups = store.rows(
         """SELECT f.group_id, COUNT(*) AS findings, MIN(f.kind) AS kind
            FROM findings f WHERE f.asset_id=? AND f.group_id IS NOT NULL
@@ -98,7 +112,18 @@ def asset_360(store, asset_id, policy, *, limit=200):
         'findings': rows,
         'vulnerabilities': [x for x in rows if x['source_kind']=='vulnerability'],
         'cis': [x for x in rows if x['source_kind']=='compliance'],
-        'correlated_cis_evidence': exposure['correlated_cis_evidence'],
+        'correlated_cis_evidence': [
+            {'vulnerability_finding_id':r['vuln_id'],
+             'compliance_finding_id':r['compliance_id'],
+             'compliance_title':r['title'], 'compliance_status':r['status'],
+             'rule_id':r['rule_id'], 'rationale':r['rationale']}
+            for r in store.rows(
+                """SELECT c.vuln_id,c.compliance_id,c.rule_id,c.rationale,
+                          f.title,f.status
+                   FROM correlations c JOIN findings f
+                   ON c.compliance_id=f.finding_id AND c.asset_id=f.asset_id
+                   WHERE c.asset_id=? ORDER BY c.vuln_id,c.compliance_id,c.rule_id
+                   LIMIT 100""", (asset_id,))],
         'cmdb': exposure['cmdb'],
         'fix_group_refs': groups,
         'same_hostname_asset_count': same_hostname,
