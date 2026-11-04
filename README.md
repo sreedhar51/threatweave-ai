@@ -21,7 +21,12 @@ ThreatWeave correlates authorized Tenable vulnerability findings with relevant f
 
 ## Architecture
 
-![ThreatWeave AI architecture — evidence sources, correlation, policy, and DecisionTrace](docs/architecture-diagram.svg)
+**ThreatWeave AI Architecture**  
+*Unified Vulnerability and Compliance Prioritization by Correlating Exposure, Compliance, and Business Context*
+
+![ThreatWeave AI Architecture — evidence sources, correlation, policy, and DecisionTrace](docs/architecture-diagram.svg)
+
+**Presentation-ready summary:** ThreatWeave AI connects vulnerability findings, CIS compliance evidence, and verified business context to help security teams prioritize remediation with clear, traceable reasoning.
 
 | Component | Responsibility |
 | --- | --- |
@@ -30,7 +35,7 @@ ThreatWeave correlates authorized Tenable vulnerability findings with relevant f
 | **Decision Receipts and Replay** | Capture source fingerprints, rank candidates and explain what changed between decisions |
 | **Analyst interfaces** | Explore Fix Groups, investigate assets, review policy drafts and compare decisions |
 
-See [architecture details](docs/ARCHITECTURE.md).
+See [architecture details](docs/ARCHITECTURE.md) and [pitch-deck messaging](docs/PITCH_MESSAGING.md).
 
 ## Setup and How to Run
 
