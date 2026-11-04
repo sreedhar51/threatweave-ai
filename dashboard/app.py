@@ -18,7 +18,7 @@ from threatweave.engine import create_receipt,compare_receipts,rank_groups,evide
 from threatweave.coverage import evidence_coverage
 from threatweave.data_sources import source_paths, load_synthetic_isolated, load_enterprise_synthetic_isolated
 from threatweave.utils import digest
-from threatweave.ui_workflows import (asset_choices, asset_360, rule_diff,
+from threatweave.ui_workflows import (asset_choices, asset_360, asset_remediation_queue, rule_diff,
     add_drafted_rule_to_yaml, save_approved_policy, rank_replay,
     list_receipt_files, read_receipt)
 
@@ -267,7 +267,60 @@ with tab_fixes:
                     st.warning('Multiple asset UUIDs share this hostname. Evidence remains isolated for the selected UUID.')
                 if dossier['truncated']:
                     st.warning('Showing '+str(dossier['displayed_findings'])+' of '+
-                               str(dossier['total_findings'])+' findings. Totals include all stored records for this UUID.')
+                               str(dossier['total_findings'])+
+                               ' detailed findings (balanced between vulnerability and CIS evidence). '+
+                               'Totals include all stored records for this UUID.')
+                st.subheader('Asset owner priority queue · what should be investigated first?')
+                st.caption('Ranked within this asset from every active vulnerability and failed CIS check, '+
+                           'not only the 200 detailed rows below. A related failed CIS control contributes '+
+                           'compounded context only through a matching rule; no inferred attack path.')
+                with store.lock:
+                    owner_queue=asset_remediation_queue(store,dossier_id,dossier_policy,limit=30)
+                owners=owner_queue.get('verified_support_groups',[])
+                st.caption('Verified CMDB support groups: '+(', '.join(owners) if owners else
+                           'unavailable — owner assignment requires review'))
+                priorities=owner_queue['items']
+                queue_rows=[{
+                    'asset_rank':x['asset_rank'], 'candidate_work':x['label'],
+                    'type':x['kind'], 'contextual_priority':x['priority'],
+                    'score':x['score'], 'vendor_severity':x['max_vendor_severity'],
+                    'vendor_vpr':x['max_vendor_vpr'],
+                    'active_findings_or_failed_checks':x['finding_count'],
+                    'compounded_vulnerabilities':x['compounded_vulnerabilities'],
+                    'related_failed_cis_controls':x['related_failed_cis_controls'],
+                    'why':', '.join(x['matched_rules']) or 'Vendor evidence only',
+                    'flags':', '.join(x['evidence_flags']),
+                } for x in priorities]
+                show_rows('Prioritized candidate remediation work',queue_rows,
+                          empty_message='No active vulnerabilities or failed CIS checks for this UUID.')
+                if owner_queue['truncated']:
+                    st.caption('Showing the top '+str(len(priorities))+' of '+
+                               str(owner_queue['total_groups'])+' asset-level candidate groups. '+
+                               'Ranking evaluated all eligible findings for this UUID.')
+                if priorities:
+                    selected_work=st.selectbox(
+                        'Explain a prioritized work item',
+                        [str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
+                         for x in priorities],key='asset360_work_item')
+                    chosen_item=priorities[[
+                        str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
+                        for x in priorities].index(selected_work)]
+                    st.markdown('**Decision explanation**')
+                    st.json({
+                        'asset_rank':chosen_item['asset_rank'],
+                        'contextual_score':chosen_item['score'],
+                        'priority':chosen_item['priority'],
+                        'policy':owner_queue['policy_id'],
+                        'source_severity':chosen_item['max_vendor_severity'],
+                        'source_vpr':chosen_item['max_vendor_vpr'],
+                        'rule_contributions':chosen_item['rule_contributions'],
+                        'candidate_group_quality':chosen_item['mapping_quality'],
+                        'sample_finding_ids':chosen_item['finding_ids'],
+                        'evidence_flags':chosen_item['evidence_flags'],
+                    })
+                    show_rows('Related failed CIS controls supporting this work item',
+                              chosen_item['linked_cis_evidence'],
+                              empty_message='No explicit related failed CIS controls for this work item.')
                 st.markdown('**1 · Vulnerability evidence and contextual priorities**')
                 show_rows('Vulnerabilities with preserved scanner values',dossier['vulnerabilities'],
                           empty_message='No vulnerability findings for the selected UUID.')
