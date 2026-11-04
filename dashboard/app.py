@@ -18,7 +18,7 @@ from threatweave.engine import create_receipt,compare_receipts,rank_groups,evide
 from threatweave.coverage import evidence_coverage
 from threatweave.data_sources import source_paths, load_synthetic_isolated
 from threatweave.utils import digest
-from threatweave.ui_workflows import (asset_choices, rule_diff,
+from threatweave.ui_workflows import (asset_choices, asset_360, rule_diff,
     add_drafted_rule_to_yaml, save_approved_policy, rank_replay,
     list_receipt_files, read_receipt)
 
@@ -223,10 +223,71 @@ with st.expander('Coverage by source, software family, compliance status and cor
     if not coverage['cmdb']['verified']:
         st.info('No verified CMDB mappings: business criticality will not change rankings. See Staged demo for verified synthetic context.')
 
-tab_fixes,tab_policy,tab_replay=st.tabs(['Fix Groups & Assets','Policy & Investigation','Decision Replay'])
+tab_fixes,tab_policy,tab_replay=st.tabs(['Asset 360 & Fix Groups','Policy & Investigation','Decision Replay'])
 
 with tab_fixes:
     try:
+        st.subheader('Asset 360 · unified vulnerability, CIS and business evidence')
+        st.caption('Start with a host, not a fix: one authoritative Tenable asset UUID connects all stored scanner findings, same-asset CIS checks, explicit correlations and verified CMDB context. Hostnames are search labels, never merge keys.')
+        dossier_policy=load_policy(ROOT/'policies/business-context.yaml')
+        dossier_search=st.text_input('Search assets by hostname (not IP)',key='asset360_search')
+        with store.lock:
+            dossier_choices=asset_choices(store,hostname_query=dossier_search,limit=100)
+        if dossier_choices:
+            dossier_options={
+                str(a['hostname'] or '(hostname unknown)')+' · '+a['asset_id']+
+                ' · '+str(a['findings'])+' findings':a['asset_id']
+                for a in dossier_choices
+            }
+            dossier_label=st.selectbox('Select an asset · authoritative UUID',list(dossier_options),key='asset360_pick')
+            dossier_id=dossier_options[dossier_label]
+            with store.lock:
+                dossier=asset_360(store,dossier_id,dossier_policy,limit=200)
+            if dossier:
+                counts=dossier['counts']
+                a360,b360,c360,d360=st.columns(4)
+                a360.metric('Vulnerabilities',counts['vulnerabilities'])
+                b360.metric('CIS failures',counts['cis_failed'])
+                c360.metric('Same-asset correlations',counts['correlations'])
+                d360.metric('Verified CMDB records',counts['verified_cmdb'])
+                asset360=dossier['asset']
+                st.caption('Hostname: '+str(asset360.get('hostname') or '(unknown)')+
+                           ' | Tenable asset UUID: '+str(asset360['asset_id']))
+                if dossier['same_hostname_asset_count']>1:
+                    st.warning('Multiple asset UUIDs share this hostname. Evidence remains isolated for the selected UUID.')
+                if dossier['truncated']:
+                    st.warning('Showing '+str(dossier['displayed_findings'])+' of '+
+                               str(dossier['total_findings'])+' findings. Totals include all stored records for this UUID.')
+                st.markdown('**1 · Vulnerability evidence and contextual priorities**')
+                show_rows('Vulnerabilities with preserved scanner values',dossier['vulnerabilities'],
+                          empty_message='No vulnerability findings for the selected UUID.')
+                st.markdown('**2 · CIS compliance posture**')
+                st.caption('Counts reflect all stored CIS statuses. WARNING/ERROR indicate scan hygiene, not failed controls.')
+                show_rows('CIS status breakdown',[
+                    x for x in dossier['status_counts'] if x['kind']=='compliance'],
+                    empty_message='No CIS evidence recorded for this UUID.')
+                show_rows('CIS controls and outcomes',dossier['cis'],
+                          empty_message='No CIS checks within the visible evidence limit.')
+                st.markdown('**3 · Explicit, same-asset vulnerability/CIS relationships**')
+                show_rows('Correlations and rationale',dossier['correlated_cis_evidence'],
+                          empty_message='No validated rule-qualified correlations; co-location alone does not imply a relationship.')
+                st.markdown('**4 · Verified business context**')
+                show_rows('Approved CMDB mapping and service context',[
+                    {k:r.get(k) for k in ('ci_id','business_service','criticality','environment',
+                                         'role','support_group','internet_exposure')}
+                    for r in dossier['cmdb']],
+                    empty_message='No verified CMDB mapping for this asset; do not infer criticality.')
+                st.caption('Candidate Fix Group references: '+
+                           str(len(dossier['fix_group_refs']))+
+                           ' displayed. Prioritization is separate from scanner severity.')
+                with st.expander('Evidence provenance, additional status and safety notes'):
+                    st.json({'asset_uuid':dossier_id,'counts':counts,
+                             'fix_groups':dossier['fix_group_refs'],
+                             'identity':dossier['identity_note'],
+                             'reachability':dossier['reachability_note']})
+        else:
+            st.info('No matching asset. Load a synthetic demonstration source or search a different hostname.')
+        st.divider()
         st.subheader('Evidence-backed candidate remediation groups')
         st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
         policy=load_policy(ROOT/'policies/business-context.yaml')
