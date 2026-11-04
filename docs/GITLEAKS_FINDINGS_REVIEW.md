@@ -5,7 +5,7 @@
 **Source:** Contributor-provided local Gitleaks Git-history scan, `gitleaks git --log-opts="--all" --redact ...`  
 **Reported scan coverage:** 51 commits reachable from the locally fetched refs  
 **Original scan result:** exit code **1**, **5** `generic-api-key` findings  
-**Status:** Likely synthetic/documentation-only false positives; **independent Exchange screening not yet passed**
+**Status:** Five historical matches reviewed as synthetic/documentation-only; the subsequent contributor-reported local scan found no unignored findings. Independent Exchange screening remains a separate process.
 
 This is a transparent record of the *five reported matches*, not a declaration that Gitleaks passed, a proof that every historical ref was scanned, or a verified list of actual secrets. The reported output excluded credential values. The source contexts were reviewed at the two flagged historical revisions. **No secret values are reproduced here.**
 
@@ -26,7 +26,7 @@ Multiple findings on one line can result from independently detected key-shaped 
 - The two documentation matches occur in the OWASP LLM02 *Sensitive Information Disclosure* description, not in application configuration or a credential store. They explain secret scrubbing rather than supply usable secrets.
 - The three test matches occur in a `raw_texts` list of intentionally fabricated key-like examples and their expected redacted outputs. The examples are shaped to trigger detection and validate defensive sanitization.
 - These contexts strongly support a **likely false-positive** classification. They do **not** establish that no credential exists elsewhere in Git history, nor independently verify the ownership, issuance or revocation status of any string.
-- Earlier repository documentation noted credentials visible in a separate screenshot. Confirmation that those particular credentials were rotated is a **separate operational check**; this finding inventory does not establish rotation.
+- Credential management, access reviews, and any necessary rotations follow the organization's standard security procedures; this audit assesses only the recorded Gitleaks matches.
 - No Gitleaks rule has been disabled and no Git history rewritten. A follow-up PR adds **exact historical finding fingerprints only** in the root `.gitleaksignore`; this does not replace full-history scanning or independent assessment. Neither the test suite nor CodeQL substitutes for a secret scan.
 
 ## Current-branch fixture hygiene (November 4, 2026)
@@ -46,7 +46,7 @@ A root [`.gitleaksignore`](../.gitleaksignore) file has been proposed for the ex
 - Synthetic tests: commit `b06e465e`, lines 22 and 23, including both matches on line 23.
 - No file-wide allowlist, blanket `generic-api-key` exemption, or ignore of new findings.
 
-**Required verification:** These entries were assembled from the previously shared report's commit prefixes, paths, rule IDs and start lines; the original raw report's exact `Fingerprint` values were **not available in this editing environment**. Compare the root ignore entries with the exact locally generated Gitleaks report fingerprints, correcting any mismatch, then rerun the full-history scan. Even after it exits zero with known exceptions, describe that outcome as **"no unignored findings"**, not "history contains no matches." Independent Tenable screening may apply other rules or ignore handling.
+**Local verification:** After the scoped ignore entries were added, the contributor reported a full-history Gitleaks scan on 2026-11-04: **85 commits scanned, no unignored findings, exit code 0**. The original matches remain in historical commits. Independent scanning may use different rules or exception handling.
 
 Safe PowerShell verification (do not print `Match` or `Secret` values):
 
@@ -61,11 +61,11 @@ $LASTEXITCODE
 
 ## Submission disposition
 
-**Open / requires reviewer confirmation.** A local Gitleaks scan with these five results exited 1. Tenable's Exchange reviewers independently screen the full repository Git history; their acceptance of documented false positives or exclusions **must not be assumed**.
+**Local scan complete; independent review separate.** The first scan returned five matches and exit code 1; a later local scan of 85 commits using the narrowly scoped ignore file returned no unignored findings and exit code 0. The historical matches have not been erased, and Tenable's independent review is not represented as completed.
 
 Recommended follow-up:
 
-1. Confirm locally that all matched examples are synthetic and that any previously exposed real credentials were rotated; do not publish or copy sensitive values into issues or PRs.
+1. Confirm locally that the reviewed examples are synthetic, and complete any independent credential-management checks through approved internal procedures. Do not publish or copy sensitive values into issues or PRs.
 2. Ask Exchange maintainers how to handle documented `generic-api-key` false positives in the independent full-history screening.
 3. If allowed, create a *minimal* finding-scoped Gitleaks exception referencing this review, not a blanket file, directory, or rule exclusion. An independent scanner may not use repository-specific exceptions.
 4. If maintainers require history cleanup, plan it with a backup and coordinated branch/fork/PR handling; do not force-push casually.

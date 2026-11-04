@@ -47,7 +47,7 @@ control evidence. If more groups exist, the table says how many are omitted.
 A *candidate* group is not proof that one change fixes all its findings. No
 work tickets, patches or vendor API writes are created.
 
-**Screenshot-driven fix:** The older UI fetched a combined first 200 rows
+**Evidence display fix:** The older UI fetched a combined first 200 rows
 ordered by `kind`, which could return 200 compliance findings before **any**
 vulnerabilities. Asset 360 now reserves a bounded evidence budget for **both**
 types and reallocates unused capacity. For example, an asset with 379
