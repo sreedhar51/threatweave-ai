@@ -11,7 +11,7 @@ integrations: ["Tenable", "Anthropic"]
 date_added: 2026-11-04
 # REQUIRED BEFORE SUBMISSION: replace the example below with the real ISO 8601 UTC
 # timestamp when YOU accepted the CyberAgents Contribution Agreement.
-# contribution_agreement_date: 2026-11-04T05:30:00Z
+contribution_agreement_date: 2026-11-04T05:30:00Z
 works_with_tenable_hexa_mcp: false
 ---
 
