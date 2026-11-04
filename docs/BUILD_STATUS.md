@@ -1,7 +1,7 @@
 # ThreatWeave AI — build and verification status
 
 **Updated:** 2026-11-04  
-**Primary source:** `main` at `c6298d023eecfd85251131dd746d2150670b5deb`  
+**Primary source:** `main` at `5e4771cc22594e3c0c562a8d6a00c713b984d863`  
 **Purpose:** current implementation status and remaining verification gates. Earlier milestone counts and pre-merge notes are superseded; Git history and past PRs retain their details.
 
 ## Current release snapshot
@@ -22,10 +22,10 @@
 
 ## Automated verification — latest confirmed main
 
-- GitHub Actions for `c6298d023eecfd85251131dd746d2150670b5deb`: **113 tests passed** on Python **3.11 and 3.12** in the `Offline regression tests` workflow.
+- GitHub Actions for `5e4771cc22594e3c0c562a8d6a00c713b984d863`: **137 tests passed** on Python **3.11 and 3.12** in the `Offline regression tests` workflow.
 - CI also completed the deterministic **three-run repeatability/evidence provenance** gate and the synthetic CLI demo smoke test successfully for both Python versions.
 - GitHub Actions CodeQL checks were reported successful for this `main` revision. **CodeQL is not a Git-history credential scan.**
-- Reference workflows: [offline tests](https://github.com/sreedhar51/threatweave-ai/actions/runs/41781215303) and [main workflow runs](https://github.com/sreedhar51/threatweave-ai/actions).
+- Reference workflows: [offline tests](https://github.com/sreedhar51/threatweave-ai/actions/runs/41785166595) and [main workflow runs](https://github.com/sreedhar51/threatweave-ai/actions).
 - CI checks are repository-level automated evidence, not a guarantee of successful authenticated operation in a particular vendor tenant or a measured production throughput.
 
 ## Authorized partner-lab evidence — operator reported
@@ -53,9 +53,9 @@ The contributor's local Gitleaks history scan reported **5 `generic-api-key` mat
 | PR #6 — Claude-native agent, command-line, Claude Code support | **Merged** |
 | PR #7 — architecture diagram and UI/guardrail refinements | Merged |
 | PR #8 — Exchange listing draft rewrite | Merged |
-| PR #9 — Claude decision briefs and correlation proposals | **Open; not in main** |
+| PR #9 — Claude decision briefs and correlation proposals | **Merged** |
 
-Do not describe the PR #9 proposal features as shipped on `main` until merged and verified. Branch-specific work and historical snapshots are not the release baseline.
+The PR #9 decision-brief and correlation-proposal additions are now part of `main`; maintain human approval boundaries and treat any proposals as unverified until reviewed. Branch-specific work and historical snapshots are not the release baseline.
 
 ## Known boundaries and pending checks
 
