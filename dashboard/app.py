@@ -141,6 +141,12 @@ with store.lock:
     version=store.data_version()
     coverage=cached_coverage(DB,version)
 
+// Source badges are derived from stored provenance, not a user-supplied label.
+asset_badges='  '.join(f"`{r['source']}: {r['count']:,} assets`" for r in coverage['asset_sources'])
+finding_badges='  '.join(f"`{r['source']}: {r['count']:,} findings`" for r in coverage['finding_sources'])
+st.markdown('**Evidence provenance:** '+(asset_badges or '`no assets`'))
+st.caption('Finding sources: '+(finding_badges or 'none'))
+
 a,b,c,d=st.columns(4)
 a.metric('Assets',summary['assets'])
 b.metric('Findings',summary['findings'])
