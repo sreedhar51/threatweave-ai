@@ -41,6 +41,41 @@ def test_scrub_secrets_comprehensive():
         assert expected_substr in scrubbed
 
 
+def test_scrub_preserves_cis_titles_mentioning_basic_authentication():
+    titles = [
+        "18.10.89.1.1 (L1) Ensure 'Allow Basic authentication' is set to 'Disabled'",
+        "WinRM Client: Allow Basic authentication",
+        "WinRM Service: Allow Basic authentication",
+        "Basic configuration of sshd is required",
+        "Basic installation",
+    ]
+    for title in titles:
+        assert scrub_secrets(title) == title
+
+
+def test_scrub_bare_basic_only_when_token_decodes_to_credentials():
+    assert scrub_secrets("Basic dXNlcjpwYXNz") == "Basic [REDACTED_BASIC_AUTH]"   # user:pass
+    assert scrub_secrets("Basic aGVsbG8gd29ybGQ=") == "Basic aGVsbG8gd29ybGQ="   # hello world, no colon
+    assert scrub_secrets("Authorization: Basic dXNlcjpwYXNz") == "Authorization: Basic [REDACTED_BASIC_AUTH]"
+
+
+def test_weak_self_checks_are_labelled_design_with_pytest_evidence(tmp_path):
+    db_path = tmp_path / "labels.db"
+    store = Store(db_path)
+    try:
+        load_demo(store)
+        audit = audit_owasp_compliance(store, str(ROOT / "policies/business-context.yaml"))
+    finally:
+        store.close()
+    controls = {**audit["llm_top_10"], **audit["agentic_applications_top_10"]}
+    for key in ("LLM04_data_model_poisoning", "LLM06_excessive_agency", "ASI01_agent_goal_hijack",
+                "ASI02_tool_misuse_exploitation", "ASI06_memory_context_poisoning"):
+        assert controls[key]["status"] == "DESIGN"
+        for ref in controls[key]["verified_by"]:
+            path, name = ref.split("::")
+            assert (ROOT / path).is_file() and f"def {name}(" in (ROOT / path).read_text()
+
+
 def test_scrub_url_preserves_port_and_query_at():
     # Item 15: A URL with a port and an @ in the query string is not mangled by the scrubber
     url = "https://svc_admin:SuperSecretPassword123@tenable.internal:8443/api/v2/assets?contact=alerts@example.com&tag=prod"

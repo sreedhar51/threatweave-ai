@@ -160,7 +160,7 @@ Autonomous and semi-autonomous AI agents face unique structural vulnerabilities 
 
 ## 4. Automated Verification & Auditing
 
-ThreatWeave includes a built-in programmatic auditor that evaluates the environment across all 20 controls, reporting honest `TESTED` (runtime-verified by code) and `DESIGN` (documented architectural property) statuses:
+ThreatWeave includes a built-in programmatic auditor that evaluates the environment across all 20 controls, reporting honest `TESTED` (the audit itself exercises the control and can fail) and `DESIGN` (an architectural property; where a pytest proves it, the control lists it under `verified_by`) statuses:
 
 ### Running the OWASP Audit via CLI
 
@@ -194,8 +194,8 @@ Example JSON audit output:
     ...
   },
   "agentic_applications_top_10": {
-    "ASI01_agent_goal_hijack": { "status": "TESTED", "passed": true, ... },
-    "ASI02_tool_misuse_exploitation": { "status": "TESTED", "passed": true, ... },
+    "ASI01_agent_goal_hijack": { "status": "DESIGN", "passed": true, ... },
+    "ASI02_tool_misuse_exploitation": { "status": "DESIGN", "passed": true, ... },
     ...
   }
 }

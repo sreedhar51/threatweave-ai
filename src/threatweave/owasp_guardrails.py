@@ -6,6 +6,8 @@ compliance auditing against:
 - Official OWASP Top 10 for Agentic Applications (Dec 2025: ASI01-ASI10)
 """
 import re
+import base64
+import binascii
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -13,10 +15,24 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from .policy import FIELDS, ACTIONS
 
 # Regex patterns for credential & sensitive information redacting (LLM02, ASI07)
+def _is_basic_credential(token: str) -> bool:
+    """True only for a base64 value that decodes to printable 'user:password'."""
+    if len(token) % 4:
+        return False
+    try:
+        decoded = base64.b64decode(token, validate=True).decode('utf-8')
+    except (binascii.Error, ValueError, UnicodeDecodeError):
+        return False
+    return ':' in decoded and decoded.isprintable()
+
+
 SECRET_PATTERNS = [
     # Basic Authentication (e.g. ServiceNow connector)
     (re.compile(r'(?i)authorization:\s*basic\s+[a-zA-Z0-9+/=]{8,}'), 'Authorization: Basic [REDACTED_BASIC_AUTH]'),
-    (re.compile(r'(?i)\bbasic\s+[a-zA-Z0-9+/=]{10,}'), 'Basic [REDACTED_BASIC_AUTH]'),
+    # Bare "Basic <token>" only when the token decodes to user:password. A plain
+    # word match would corrupt CIS titles such as "Allow Basic authentication".
+    (re.compile(r'(?i)\b(basic)\s+([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9+/=])'),
+     lambda m: 'Basic [REDACTED_BASIC_AUTH]' if _is_basic_credential(m.group(2)) else m.group(0)),
     # Anthropic API keys
     (re.compile(r'sk-ant-[a-zA-Z0-9_\-]{20,}'), '[REDACTED_ANTHROPIC_KEY]'),
     # General / OpenAI API keys
@@ -225,14 +241,15 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
         "evidence": "Minimal dependencies via pyproject.toml; offline-first core operates without remote model downloads or dynamic code fetches",
     }
 
-    # LLM04: Data and Model Poisoning (TESTED)
+    # LLM04: Data and Model Poisoning (DESIGN; proven by the pytest named in verified_by)
     try:
         db_hash = store.snapshot_hash()
         llm04_ok = bool(db_hash and len(db_hash) == 64)
     except Exception:
         llm04_ok = False
     llm_audit["LLM04_data_model_poisoning"] = {
-        "status": "TESTED" if llm04_ok else "FAIL",
+        "status": "DESIGN" if llm04_ok else "FAIL",
+        "verified_by": ["tests/test_extensions.py::test_nessus_dtd_or_entity_rejected", "tests/test_engine.py::test_different_cmdb_evidence_changes_data_fingerprint"],
         "passed": llm04_ok,
         "evidence": "Strict schema normalization; verified CMDB identity gate; XML entity injection rejected; SQLite snapshot hash tracks DB integrity",
         "snapshot_hash": f"sha256:{db_hash[:16]}..." if llm04_ok else "unavailable",
@@ -250,11 +267,12 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
         "evidence": "Draft rules are validated against strict schema before preview; no code generation or dynamic shell execution allowed",
     }
 
-    # LLM06: Excessive Agency (TESTED)
+    # LLM06: Excessive Agency (DESIGN; proven by the pytest named in verified_by)
     disallowed_in_tools = any(t in ALLOWED_AGENT_TOOLS for t in ["execute_command", "write_file", "patch_asset", "create_ticket"])
     llm06_ok = (not disallowed_in_tools) and len(ALLOWED_AGENT_TOOLS) == 4
     llm_audit["LLM06_excessive_agency"] = {
-        "status": "TESTED" if llm06_ok else "FAIL",
+        "status": "DESIGN" if llm06_ok else "FAIL",
+        "verified_by": ["tests/test_owasp_guardrails.py::test_unknown_tool_returns_error_and_does_not_execute"],
         "passed": llm06_ok,
         "evidence": "Strict read-only tool surface (4 tools); zero write/remediation capabilities; draft rules require explicit human approval (approved=False)",
         "allowed_tools": sorted(list(ALLOWED_AGENT_TOOLS)),
@@ -306,20 +324,22 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     # -------------------------------------------------------------
     agentic_audit: Dict[str, Dict[str, Any]] = {}
 
-    # ASI01: Agent Goal Hijack (TESTED)
+    # ASI01: Agent Goal Hijack (DESIGN; proven by the pytest named in verified_by)
     # Real defense is structural: evidence wrapped as untrusted data, LLM cannot change scores or write anything
     test_wrap = wrap_untrusted_evidence({"text": "test"})
     asi01_ok = test_wrap.get("_security_context", {}).get("instruction_execution_allowed") is False
     agentic_audit["ASI01_agent_goal_hijack"] = {
-        "status": "TESTED" if asi01_ok else "FAIL",
+        "status": "DESIGN" if asi01_ok else "FAIL",
+        "verified_by": ["tests/test_owasp_guardrails.py::test_agent_loop_mocked_redacts_and_wraps_evidence"],
         "passed": asi01_ok,
         "evidence": "Structural isolation: evidence wrapped as untrusted data; execution not allowed; LLM has no write or score-altering tools",
     }
 
-    # ASI02: Tool Misuse and Exploitation (TESTED)
+    # ASI02: Tool Misuse and Exploitation (DESIGN; proven by the pytest named in verified_by)
     asi02_ok = (not disallowed_in_tools) and ("execute_command" not in ALLOWED_AGENT_TOOLS) and len(ALLOWED_AGENT_TOOLS) == 4
     agentic_audit["ASI02_tool_misuse_exploitation"] = {
-        "status": "TESTED" if asi02_ok else "FAIL",
+        "status": "DESIGN" if asi02_ok else "FAIL",
+        "verified_by": ["tests/test_owasp_guardrails.py::test_unknown_tool_returns_error_and_does_not_execute"],
         "passed": asi02_ok,
         "evidence": "Strict tool allowlist verified before dispatch; unknown tools rejected; query-only capabilities without shell or file writes",
     }
@@ -350,9 +370,10 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
         "evidence": "Zero dynamic code execution from LLM output; rule proposals strictly schema-checked; Nessus parser rejects XML DTD/entities",
     }
 
-    # ASI06: Memory and Context Poisoning (TESTED)
+    # ASI06: Memory and Context Poisoning (DESIGN; proven by the pytest named in verified_by)
     agentic_audit["ASI06_memory_context_poisoning"] = {
-        "status": "TESTED" if llm04_ok else "FAIL",
+        "status": "DESIGN" if llm04_ok else "FAIL",
+        "verified_by": ["tests/test_engine.py::test_receipts_reproducible"],
         "passed": llm04_ok,
         "evidence": "Stateless agent investigation loops; no persistent unvetted scratchpads; evidence state derived exclusively from hashed SQLite store",
     }
