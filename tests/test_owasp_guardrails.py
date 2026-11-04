@@ -248,7 +248,7 @@ def test_agent_loop_mocked_redacts_and_wraps_evidence(tmp_path):
     response_turn2 = MagicMock()
     response_turn2.content = [text_block]
 
-    mock_client.messages.create.side_effect = [response_turn1, response_turn2]
+    mock_client.beta.messages.create.side_effect = [response_turn1, response_turn2]
 
     with patch("threatweave.agent._client", return_value=mock_client):
         result = investigate(
@@ -259,7 +259,7 @@ def test_agent_loop_mocked_redacts_and_wraps_evidence(tmp_path):
         assert result == "Investigation complete."
 
         # Inspect the tool result payload sent in Turn 2
-        calls = mock_client.messages.create.call_args_list
+        calls = mock_client.beta.messages.create.call_args_list
         assert len(calls) == 2
         turn2_messages = calls[1][1]["messages"]
         tool_result_msg = turn2_messages[2]
@@ -301,7 +301,7 @@ def test_unknown_tool_returns_error_and_does_not_execute(tmp_path):
     resp2 = MagicMock()
     resp2.content = [MagicMock(type="text", text="Handled bad tool")]
 
-    mock_client.messages.create.side_effect = [resp1, resp2]
+    mock_client.beta.messages.create.side_effect = [resp1, resp2]
 
     with patch("threatweave.agent._client", return_value=mock_client):
         result = investigate(
@@ -310,7 +310,7 @@ def test_unknown_tool_returns_error_and_does_not_execute(tmp_path):
             str(ROOT / "policies/business-context.yaml")
         )
         assert result == "Handled bad tool"
-        turn2_messages = mock_client.messages.create.call_args_list[1][1]["messages"]
+        turn2_messages = mock_client.beta.messages.create.call_args_list[1][1]["messages"]
         tool_result_content = json.loads(turn2_messages[2]["content"][0]["content"])
         assert "not permitted" in tool_result_content["error"]
 

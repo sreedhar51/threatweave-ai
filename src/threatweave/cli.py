@@ -40,6 +40,15 @@ def main(argv=None):
     commands.add_parser('correlate',help='Run vetted same-asset CIS correlation rules')
     sub=commands.add_parser('investigate',help='Run standalone read-only agent investigation')
     sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'))
+    sub=commands.add_parser('ask',help='Ask Claude a question over read-only evidence tools (needs ANTHROPIC_API_KEY)')
+    sub.add_argument('question')
+    sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'))
+    sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
+    sub.add_argument('--effort',choices=['low','medium','high','xhigh','max'],help='Claude effort level (default: high)')
+    sub=commands.add_parser('draft-rule',help='Ask Claude to draft one policy rule; never activated (needs ANTHROPIC_API_KEY)')
+    sub.add_argument('request',help='Plain-English description of the rule')
+    sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'),help='Policy the draft is validated against')
+    sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
     sub=commands.add_parser('receipt',help='Generate deterministic ranking receipt')
     sub.add_argument('--policy',default=str(ROOT/'policies/default.yaml'))
     sub.add_argument('--out',default='runtime/receipts/receipt.json')
@@ -73,6 +82,26 @@ def main(argv=None):
             store.close()
         print(json.dumps(result, indent=2))
         return 1 if result.get('verdict') != 'PASS' else 0
+    elif args.command in ('ask','draft-rule'):
+        import sys
+        from .agent import ClaudeUnavailable, run_investigation, draft_rule
+        try:
+            if args.command=='ask':
+                if not Path(args.db).is_file():
+                    print(json.dumps({'error': f"Database file does not exist: {args.db}"}, indent=2), file=sys.stderr)
+                    return 1
+                result=run_investigation(args.question,args.db,args.policy,model=args.model,effort=args.effort)
+            else:
+                result=draft_rule(args.request,load_policy(args.policy),model=args.model)
+        except ClaudeUnavailable as exc:
+            print(json.dumps({'error': str(exc), 'hint': 'Run `threatweave investigate` for the offline guided agent.'},
+                             indent=2), file=sys.stderr)
+            return 2
+        except ValueError as exc:
+            print(json.dumps({'error': 'Draft rejected: '+str(exc)[:200]}, indent=2), file=sys.stderr)
+            return 1
+        print(json.dumps(result,indent=2))
+        return 0 if result.get('status','completed')=='completed' else 3
     else:
         store=Store(args.db)
         try:
