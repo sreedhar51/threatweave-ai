@@ -29,6 +29,15 @@ Multiple findings on one line can result from independently detected key-shaped 
 - Earlier repository documentation noted credentials visible in a separate screenshot. Confirmation that those particular credentials were rotated is a **separate operational check**; this finding inventory does not establish rotation.
 - No Gitleaks rule has been disabled, no allowlist added, and no Git history rewritten. Neither the test suite nor the existing CodeQL checks substitute for a full-history secret scan.
 
+## Current-branch fixture hygiene (November 4, 2026)
+
+The remediation branch `fix/synthetic-key-fixture-hygiene` changes current files only:
+
+- `tests/test_owasp_guardrails.py` assembles three deliberate redaction-test inputs from string fragments at runtime rather than committing contiguous key-shaped test literals. Expected redaction behavior is unchanged.
+- `docs/OWASP_AGENT_BEST_PRACTICES.md` retains the LLM02 control description but uses clearer, generic language rather than writing provider-credential names in a long Markdown table cell.
+
+**History remains unchanged.** These updates do not remove the previously identified matches from historical commits `b06e465e` and `0f71cf4a`. A scan using `--log-opts="--all"` can continue to report the historical five findings. That is not evidence that the cleanup failed to change the current tree; it means Git preserves earlier versions by design. Do not claim the full-history screening is clean until Tenable has accepted an exception or an approved history-remediation procedure has been completed and verified. No automatic Gitleaks ignore or global rule exemption was introduced.
+
 ## Submission disposition
 
 **Open / requires reviewer confirmation.** A local Gitleaks scan with these five results exited 1. Tenable's Exchange reviewers independently screen the full repository Git history; their acceptance of documented false positives or exclusions **must not be assumed**.
