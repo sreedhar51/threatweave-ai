@@ -1,6 +1,6 @@
 # ThreatWeave AI — implementation and verification status
 
-Updated: November 3, 2026. Work-in-progress review branch `review/steps-1-5-evidence-foundations` (not merged to main).
+Updated: November 3, 2026. Baseline PR #1 has been merged into `main`; new UI/performance Part A work is on branch `feat/swarm-ui-evidence-performance`. Historical verification notes below describe earlier checkpoints.
 
 ## Verified locally
 
@@ -64,3 +64,25 @@ Confirm contest eligibility and deadline, validate authorized tenant export, run
 - Added minimal `CLAUDE.md` / `AGENTS.md`, a SWARM-readiness checklist and CI repeatability check. These are not Exchange Inspector vetting.
 - Oversized Claude tool responses now return valid structured `TRUNCATED` JSON instead of invalid fragments. No new scorer, vendor writes or cross-host inferences.
 - Performance was checked synthetically at 5,000 generated assets per stage. No certified live tenant throughput, customer outcomes, real-world time-saved measurement or Exchange approval claim.
+
+## Authorized Partner Lab verification reported from Windows laptop
+
+After the initial build-status checkpoints, the authorized test-lab operator reported successful read-only Tenable VM authentication and ingestion of 1,394 asset records, 18,974 vulnerability records, and 4,483 compliance records (zero ingestion rejections); 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt (`DR-558889ccdbeb9ddb`) reproduced byte-for-byte after excluding the generation timestamp. Python 3.13 Windows tests: 46 passed on the merged baseline. These were **user-reported laptop test outputs**, not independently authenticated from the ChatGPT execution environment. Correlation-rule quality, verified CMDB mappings, UI AppTest, and production throughput remain unverified.
+
+## UI and performance Part A checkpoint (November 3, 2026)
+
+- New review branch `feat/swarm-ui-evidence-performance` isolates tenant, synthetic fixture, and staged UI SQLite databases. The synthetic loader cannot write to a tenant database; staged rebuilds close cached SQLite connections before recreating files on Windows.
+- Added idempotent `findings.group_id` migration, batched backfill (5,000 rows), and indexed group evidence lookup. Correlation `vuln_id` / `asset_id` access is indexed.
+- Cached read-only dashboard aggregation and ranking by selected database, row-count / ingest-run version hints, and policy hash; no new receipt creation occurs unless the user requests it. **Known limitation:** external in-place updates that preserve row counts may require clearing the app cache; this is a presentation cache, not a Decision Receipt fingerprint.
+- Added source and evidence coverage panels, read-only vendor severity/VPR group maxima, and optional 0 / 5,000 / 50,000 synthetic staged runs with stage timings. Original contextual policy scoring and deterministic tie order remain unchanged.
+- Measured locally with `python scripts/bench.py --assets 50000` on Python 3.13.5 and synthetic fixtures (single execution, not production throughput): **50,000 assets, 50,000 vulnerabilities, 8,334 compliance findings, 4,167 CMDB records**, 8,334 candidate correlations, 3 fix groups. Elapsed times: **ingest 4.650s, correlate 0.168s, rank_groups 1.507s, indexed evidence_for_group 0.000341s**. Machine-specific measurements; no implication of equivalent results on a Windows laptop or a 250,000-asset estate.
+- Offline tests: **51 passed** (46 original + 5 added Part A checks); three-run synthetic ship-check passes. Browser-level Streamlit AppTest not executed in this environment because Streamlit is not installed; run on the user's local UI-enabled Python environment before merge. A manually verified 50,000-asset staged UI session is also outstanding.
+- Parts B/C/D, including policy approvals, richer replay and OWASP PR #3, are intentionally **not implemented** in this checkpoint. OWASP PR #3 is open, not merged into `main` at branch creation.
+
+## Part B dashboard workflow (November 3, 2026)
+
+- User interface: source-evidence tables, hostname and group-scoped asset picker, contextual finding/evidence breakdown, side-by-side before/after rank chart, explicit contribution deltas, versioned local policy approval, and ingestion freshness history.
+- **Breaking ranking-order-only change:** score ties now rank by compounded assets, verified critical assets, production assets, total assets, finding count, and stable fix-group ID, in that order. Finding scoring, source values, and correlation rules remain unchanged. Receipt IDs and ranks can therefore differ from previous releases even when source data is identical.
+- `ingest_runs` was previously defined but unused; migration adds `started_at` and `finished_at`, and every completed `ingest_records` import writes its accepted/rejected summary. Imported history does not change source fingerprints.
+- Local regression tests and repeatability gate must be rerun against this branch. Streamlit AppTest is included as an optional integration test requiring the `ui` extra. Interactive laptop browser coverage is not established by Python compilation.
+- This stage does **not** integrate OWASP guardrails PR #3 (a separate open branch), and does not change live Tenable or ServiceNow via API.

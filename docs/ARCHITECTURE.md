@@ -48,7 +48,7 @@ Tenable VM async API (assets/vulnerabilities/optional compliance)
 
 ## Context policy behavior
 
-Starting finding priority is a **demonstration-only** mapping of original vendor severity plus a small bounded VPR contribution. Rule actions may escalate priority or flag uncertainty. Deliberate no automatic down-weight for missing context, stale evidence, or the mere presence of endpoint security tools. A fix group's score is the maximum of member findings' contextual scores; group size serves only as a stable sorting tiebreaker. Thus, a critical production asset is not ignored simply because a different group has more findings.
+Starting finding priority is a **demonstration-only** mapping of original vendor severity plus a small bounded VPR contribution. Rule actions may escalate priority or flag uncertainty. Deliberate no automatic down-weight for missing context, stale evidence, or the mere presence of endpoint security tools. A fix group's score is the maximum of member findings' contextual scores; tied groups are ordered deterministically by **compounded asset count**, then verified critical asset count, production asset count, total asset count, finding count, and stable `fix_group_id`. This changes tie order only, not the severity/VPR or scoring formula. Thus, a critical production asset is not ignored simply because a different group has more findings.
 
 ## Operational impact
 
@@ -78,3 +78,11 @@ The group view exposes distinct affected assets, server/workstation split, produ
 4. OPA Rego runtime for advanced organizational policies with rule-set validation, constrained tenant policy data, and replay compatibility.
 5. Topology and identity data providers for qualified attack-path prerequisites; never infer lateral movement from IP addresses.
 6. Parquet and DuckDB production data pipeline with measured performance/quality gates.
+
+## Dashboard Part B controls
+
+- Asset lookup filters only on hostname and authoritative UUID; no IP joins.
+- The policy editor compares rule IDs with the active policy. Explicit approval writes a versioned local YAML and a separate Decision Receipt; it does not activate a policy in any Tenable tenant.
+- Replay can compare policies (same dataset) or saved receipts (possibly different datasets) and displays rule additions/removals and contribution deltas. A receipt does not itself establish applicability or remediation success.
+- Ingestion audit rows track provider, record kind, counts and timestamps. Audit history is excluded from dataset fingerprints so identical evidence produces the same Decision Receipt.
+- Streamlit caches rankings and coverage; changing external SQLite records without changing row counts may require a manual cache refresh.

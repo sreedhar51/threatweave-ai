@@ -2,6 +2,7 @@
 import csv
 import io
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from .utils import canonical, digest, numeric
 from .software import classify_family
@@ -142,6 +143,7 @@ def iter_records(filename):
 def ingest_records(store, records, record_type, provider='tenable', max_rejections=30):
     if record_type not in {'asset','vulnerability','compliance','cmdb'}:
         raise ValueError('Unsupported record type')
+    started_at=datetime.now(timezone.utc).isoformat()
     total=accepted=0
     errors=[]
     for record in records:
@@ -171,6 +173,7 @@ def ingest_records(store, records, record_type, provider='tenable', max_rejectio
     store.commit()
     report={'provider':provider,'record_type':record_type,'received':total,'accepted':accepted,
             'rejected':total-accepted,'errors':errors}
+    store.record_ingest_run(provider,record_type,report,started_at)
     return report
 
 

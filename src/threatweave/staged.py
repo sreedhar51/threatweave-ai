@@ -36,13 +36,16 @@ def run_staged_demo(output_dir, n_assets=0, seed=42):
             correlate(store,ROOT/'policies/correlation-rules.yaml')
             receipt=create_receipt(store,policy,output_dir/(name+'.json'))
             receipts.append(receipt)
+            hero_group_ids={row['group_id'] for row in store.rows(
+                "SELECT DISTINCT group_id FROM findings WHERE asset_id=? AND kind='vulnerability'",
+                (HERO,))}
             hero[name]=[
                 {'fix_group_id':g['fix_group_id'],'label':g['label'],
                  'rank':g['rank'],'score':g['score'],'priority':g['priority'],
                  'compounded_assets_count':g['compounded_assets_count'],
                  'matched_rules':g['matched_rules']}
                 for g in receipt['rankings'] if g['kind']=='vulnerability'
-                and any(r['asset_id']==HERO for r in g['evidence_refs'])
+                and g['fix_group_id'] in hero_group_ids
             ]
         finally:
             store.close()

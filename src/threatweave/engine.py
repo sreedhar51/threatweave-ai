@@ -7,6 +7,8 @@ from pathlib import Path
 from .policy import evaluate_finding, load_policy, validate_policy, priority
 from .utils import canonical,digest,now_utc,parse_time
 
+VENDOR_SEVERITY_ORDER = {"info":0,"informational":0,"low":1,"medium":2,"high":3,"critical":4}
+
 ACTIVE={'OPEN','ACTIVE','REOPENED','NEW'}
 FAILED={'FAIL','FAILED','NON_COMPLIANT'}
 
@@ -85,9 +87,17 @@ def rank_groups(store, policy, max_groups=None):
                          'score':0,'priority':'low','finding_count':0,'assets':set(),
                          'servers':set(),'workstations':set(),'production_assets':set(),
                          'compounded_asset_ids':set(),'matched_rules':set(), 'rule_contributions':{},
-                         'evidence_flags':set(),'evidence_refs':[],'critical_assets':set()}
+                         'evidence_flags':set(),'evidence_refs':[],'critical_assets':set(),
+                         'max_vendor_severity':None,'max_vendor_vpr':None}
         g=groups[gid]
         g['finding_count']+=1
+        original_severity=str(f.get('severity') or '').lower()
+        old_severity=str(g.get('max_vendor_severity') or '').lower()
+        if original_severity and (not old_severity or
+                VENDOR_SEVERITY_ORDER.get(original_severity,-1)>VENDOR_SEVERITY_ORDER.get(old_severity,-1)):
+            g['max_vendor_severity']=f['severity']
+        if f.get('vpr') is not None and (g['max_vendor_vpr'] is None or f['vpr']>g['max_vendor_vpr']):
+            g['max_vendor_vpr']=f['vpr']
         asset_id=f['asset_id']
         g['assets'].add(asset_id)
         if (f.get('asset_type') or '').lower()=='server': g['servers'].add(asset_id)
@@ -116,7 +126,9 @@ def rank_groups(store, policy, max_groups=None):
         g['rule_contributions']={k:g['rule_contributions'][k] for k in sorted(g['rule_contributions'])}
         g['evidence_flags']=sorted(g['evidence_flags'])
         ranked.append(g)
-    ranked.sort(key=lambda g:(-g['score'],-g['assets_count'],-g['finding_count'],g['fix_group_id']))
+    ranked.sort(key=lambda g:(-g['score'],-g['compounded_assets_count'],
+                               -g['critical_assets_count'],-g['production_assets_count'],
+                               -g['assets_count'],-g['finding_count'],g['fix_group_id']))
     for i,g in enumerate(ranked,start=1): g['rank']=i
     return ranked if max_groups is None else ranked[:max_groups]
 
@@ -183,9 +195,10 @@ def compare_receipts(before,after,limit=25):
 def evidence_for_group(store, gid, limit=25):
     limit=max(1,min(100,int(limit)))
     result=[]
-    for r in store.db.execute('SELECT * FROM findings ORDER BY finding_id'):
+    for r in store.db.execute('SELECT * FROM findings WHERE group_id=? ORDER BY finding_id LIMIT ?',
+                              (gid,limit)):
         f=dict(r)
-        if group_key(f)[0]==gid:
+        if f['group_id']==gid:
             result.append({k:f.get(k) for k in ('finding_id','asset_id','kind','source','title','severity',
                                                 'status','plugin_id','control_id','audit_file','source_hash','source_excerpt')})
             if len(result)>=limit:break
