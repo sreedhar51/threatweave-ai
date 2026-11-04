@@ -1,0 +1,251 @@
+{
+  "disclaimer": "Entirely synthetic; fictional assets, fake plugin IDs, illustrative business-criticality approvals and synthetic control IDs. Not proof of exploitability, KEV, network reachability or actual remediation.",
+  "assets": [
+    {
+      "uuid": "demo-dev-lib",
+      "hostname": "dev-build-01.demo.invalid",
+      "operating_system": "Ubuntu 24.04",
+      "asset_type": "server",
+      "environment": "development",
+      "role": "build_agent",
+      "tags": [
+        "development"
+      ],
+      "last_seen": "2026-11-02T12:00:00Z"
+    },
+    {
+      "uuid": "demo-pay-api",
+      "hostname": "pay-api-01.demo.invalid",
+      "operating_system": "Ubuntu 24.04",
+      "asset_type": "server",
+      "tags": [
+        "web"
+      ],
+      "last_seen": "2026-11-02T12:00:00Z"
+    },
+    {
+      "uuid": "demo-identity",
+      "hostname": "id-core-01.demo.invalid",
+      "operating_system": "Windows Server 2022",
+      "asset_type": "server",
+      "tags": [
+        "identity"
+      ],
+      "last_seen": "2026-11-02T12:00:00Z"
+    },
+    {
+      "uuid": "demo-backup",
+      "hostname": "recovery-01.demo.invalid",
+      "operating_system": "Windows Server 2022",
+      "asset_type": "server",
+      "tags": [
+        "backup"
+      ],
+      "last_seen": "2026-11-02T12:00:00Z"
+    },
+    {
+      "uuid": "demo-admin-ws",
+      "hostname": "admin-ws-01.demo.invalid",
+      "operating_system": "Windows 11",
+      "asset_type": "workstation",
+      "environment": "office",
+      "role": "workstation",
+      "tags": [
+        "workstation"
+      ],
+      "last_seen": "2026-11-02T12:00:00Z"
+    }
+  ],
+  "vulnerability": [
+    {
+      "asset": {
+        "uuid": "demo-dev-lib"
+      },
+      "plugin": {
+        "id": 8101,
+        "name": "Synthetic critical library update in development",
+        "solution": "Update synthetic development library",
+        "vpr": {
+          "score": 9.4
+        }
+      },
+      "severity": "critical",
+      "port": {
+        "port": 0,
+        "protocol": "tcp"
+      },
+      "status": "OPEN",
+      "software_family": "software_library",
+      "observed_at": "2026-11-02T12:00:00Z"
+    },
+    {
+      "asset": {
+        "uuid": "demo-pay-api"
+      },
+      "plugin": {
+        "id": 8102,
+        "name": "Synthetic high-severity SSH package issue",
+        "solution": "Update synthetic SSH package on payment API",
+        "vpr": {
+          "score": 7.8
+        }
+      },
+      "severity": "high",
+      "port": {
+        "port": 22,
+        "protocol": "tcp"
+      },
+      "status": "OPEN",
+      "software_family": "openssh",
+      "observed_at": "2026-11-02T12:00:00Z"
+    },
+    {
+      "asset": {
+        "uuid": "demo-identity"
+      },
+      "plugin": {
+        "id": 8103,
+        "name": "Synthetic remote-administration service flaw",
+        "solution": "Update synthetic identity administration service",
+        "vpr": {
+          "score": 7.5
+        }
+      },
+      "severity": "high",
+      "port": {
+        "port": 3389,
+        "protocol": "tcp"
+      },
+      "status": "OPEN",
+      "software_family": "remote_admin",
+      "observed_at": "2026-11-02T12:00:00Z"
+    },
+    {
+      "asset": {
+        "uuid": "demo-backup"
+      },
+      "plugin": {
+        "id": 8104,
+        "name": "Synthetic backup application vulnerability",
+        "solution": "Update synthetic backup application",
+        "vpr": {
+          "score": 5
+        }
+      },
+      "severity": "medium",
+      "port": {
+        "port": 0,
+        "protocol": "tcp"
+      },
+      "status": "OPEN",
+      "software_family": "software_library",
+      "observed_at": "2026-11-02T12:00:00Z"
+    },
+    {
+      "asset": {
+        "uuid": "demo-admin-ws"
+      },
+      "plugin": {
+        "id": 8105,
+        "name": "Synthetic privileged workstation app issue",
+        "solution": "Update synthetic administrative workstation application",
+        "vpr": {
+          "score": 4.2
+        }
+      },
+      "severity": "medium",
+      "port": {
+        "port": 0,
+        "protocol": "tcp"
+      },
+      "status": "OPEN",
+      "software_family": "workstation_app",
+      "observed_at": "2026-11-02T12:00:00Z"
+    }
+  ],
+  "compliance": [
+    {
+      "asset_uuid": "demo-pay-api",
+      "compliance_full_id": "SYNTH-SSH-ACCESS-01",
+      "audit_file": "synthetic-ubuntu-hardening.audit",
+      "title": "Ensure SSH access is limited",
+      "status": "FAIL",
+      "expected_value": "restricted",
+      "actual_value": "unrestricted",
+      "observed_at": "2026-11-02T12:00:00Z"
+    },
+    {
+      "asset_uuid": "demo-identity",
+      "compliance_full_id": "CIS-REMOTE-ADMIN",
+      "audit_file": "synthetic-windows-hardening.audit",
+      "title": "Synthetic remote administration hardening",
+      "status": "FAIL",
+      "expected_value": "restricted",
+      "actual_value": "permissive",
+      "observed_at": "2026-11-02T12:00:00Z"
+    }
+  ],
+  "cmdb": [
+    {
+      "ci_sys_id": "synthetic-ci-pay",
+      "tenable_asset_uuid": "demo-pay-api",
+      "mapping_verified": "yes",
+      "business_service": "Payment authorization (synthetic)",
+      "business_criticality": "critical",
+      "environment": "production",
+      "role": "web_server",
+      "business_tags": [
+        "payments",
+        "regulated"
+      ],
+      "internet_exposure": "confirmed",
+      "support_group": "Payment Platform",
+      "last_updated": "2026-11-02T12:00:00Z"
+    },
+    {
+      "ci_sys_id": "synthetic-ci-id",
+      "tenable_asset_uuid": "demo-identity",
+      "mapping_verified": "yes",
+      "business_service": "Enterprise identity (synthetic)",
+      "business_criticality": "critical",
+      "environment": "production",
+      "role": "identity_server",
+      "business_tags": [
+        "identity"
+      ],
+      "internet_exposure": "unknown",
+      "support_group": "Identity Operations",
+      "last_updated": "2026-11-02T12:00:00Z"
+    },
+    {
+      "ci_sys_id": "synthetic-ci-backup",
+      "tenable_asset_uuid": "demo-backup",
+      "mapping_verified": "yes",
+      "business_service": "Enterprise restore (synthetic)",
+      "business_criticality": "high",
+      "environment": "production",
+      "role": "backup_server",
+      "business_tags": [
+        "backup"
+      ],
+      "internet_exposure": "internal",
+      "support_group": "Recovery Operations",
+      "last_updated": "2026-11-02T12:00:00Z"
+    },
+    {
+      "ci_sys_id": "synthetic-ci-admin-ws",
+      "tenable_asset_uuid": "demo-admin-ws",
+      "mapping_verified": "yes",
+      "business_service": "Privileged IT operations (synthetic)",
+      "business_criticality": "high",
+      "environment": "office",
+      "role": "privileged_workstation",
+      "business_tags": [
+        "it_admin"
+      ],
+      "internet_exposure": "unknown",
+      "support_group": "Endpoint Operations",
+      "last_updated": "2026-11-02T12:00:00Z"
+    }
+  ]
+}
