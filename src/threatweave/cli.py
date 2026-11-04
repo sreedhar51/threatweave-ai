@@ -59,6 +59,20 @@ def main(argv=None):
         finally:store.close()
     elif args.command=='compare':
         result=compare_receipts(json.loads(Path(args.before).read_text()),json.loads(Path(args.after).read_text()))
+    elif args.command=='check-owasp':
+        if not Path(args.db).is_file():
+            import sys
+            error_payload = {'error': f"Database file does not exist: {args.db}"}
+            print(json.dumps(error_payload, indent=2), file=sys.stderr)
+            return 1
+        from .owasp_guardrails import audit_owasp_compliance
+        store = Store(args.db)
+        try:
+            result = audit_owasp_compliance(store, args.policy)
+        finally:
+            store.close()
+        print(json.dumps(result, indent=2))
+        return 1 if result.get('verdict') != 'PASS' else 0
     else:
         store=Store(args.db)
         try:
@@ -95,9 +109,6 @@ def main(argv=None):
                 obj=create_receipt(store,load_policy(args.policy),args.out)
                 result={'receipt_id':obj['receipt_id'],'saved_to':args.out,'groups':len(obj['rankings']),
                         'top_groups':obj['rankings'][:5]}
-            elif args.command=='check-owasp':
-                from .owasp_guardrails import audit_owasp_compliance
-                result=audit_owasp_compliance(store,args.policy)
         finally:store.close()
     print(json.dumps(result,indent=2))
     return 0

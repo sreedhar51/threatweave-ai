@@ -163,20 +163,22 @@ The Tenable cloud VM account is not the same product or credential set as
 on-prem Security Center or Cloud Security GraphQL. Live connection was not
 validated in the ChatGPT execution environment.
 
-## OWASP Top 10 for LLM & Agentic AI Architecture
+## OWASP Top 10 for LLM & Agentic Applications
 
-ThreatWeave AI implements programmatic guardrails and defense-in-depth architecture aligned with both the **OWASP Top 10 for LLM Applications** and **OWASP Top 10 for Agentic AI Applications (ASI)**:
+ThreatWeave AI implements programmatic guardrails and defense-in-depth architecture aligned with both the **OWASP Top 10 for LLM Applications** and the **Official OWASP Top 10 for Agentic Applications (Dec 2025: ASI01–ASI10)**:
 
-- **Excessive Agency Mitigation (LLM06, ASI01)**: Strictly read-only tool surface (`get_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`). No remediation, patching, or ticketing tools. Policy proposals require human review (`approved: False`).
-- **Prompt Injection & Untrusted Data Isolation (LLM01, ASI02)**: Ingested scanner output and external strings are delimited as untrusted data; heuristic injection payloads are sanitized.
-- **Sensitive Credential Scrubber (LLM02, ASI07)**: Automated regex redaction of Anthropic keys, Tenable keys, Bearer tokens, passwords, and private keys.
-- **Deterministic Decisions & Traceability (LLM09, ASI08)**: Risk scores are computed exclusively by the deterministic ContextIQ engine, not by LLM hallucination. Decision Receipts provide cryptographic audit trails.
-- **Consumption Limits (LLM10, ASI09)**: Tool calls and turn iterations capped at 5; tool payloads capped at 16,000 characters with explicit JSON `TRUNCATED` signaling.
+- **Structural Goal & Action Boundaries (LLM06, ASI01, ASI10)**: Strictly read-only tool surface (`get_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`), rejected before dispatch if unpermitted. No remediation, patching, or ticketing tools. Policy proposals require human review (`approved: False`).
+- **Tool Exploitation Prevention (ASI02, ASI05)**: Strictly typed and bounded tool arguments; MCP receipt comparisons restricted to safe directories. Zero dynamic code generation or subshell execution.
+- **Untrusted Evidence Isolation (LLM01, ASI01, ASI06)**: All tool results wrapped in `_security_context` classifying data as non-executable. Heuristic prompt injection patterns in scanner data are flagged as detection flags.
+- **Sensitive Credential Scrubber (LLM02, ASI03)**: Automated regex redaction of Basic auth, Anthropic keys, Tenable keys, Bearer tokens, passwords, and private keys.
+- **Deterministic Decisions & Traceability (LLM09, ASI08, ASI09)**: Risk scores are computed exclusively by the deterministic ContextIQ engine, not by LLM inference. Decision Receipts provide reproducible audit trails.
+- **Consumption Limits (LLM10, ASI08)**: Tool calls and turn iterations capped at 5; tool payloads capped at 16,000 characters with explicit JSON `TRUNCATED` signaling.
 
 Run the compliance check via:
 ```bash
 threatweave --db runtime/threatweave.db check-owasp
 ```
+The audit reports honest `TESTED` vs. `DESIGN` statuses across all 20 controls and exits 1 if any tested control fails.
 
 See [docs/OWASP_AGENT_BEST_PRACTICES.md](docs/OWASP_AGENT_BEST_PRACTICES.md) for the full architecture specification and control matrix.
 
