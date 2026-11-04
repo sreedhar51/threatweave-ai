@@ -21,6 +21,47 @@ python -m streamlit run dashboard/app.py
 6. Scroll to the existing **Fix Groups** section to show the *cross-asset remediation-work queue*. The asset view and Fix Groups answer different questions: **what is happening to this host?** vs. **what work should we consider first?**
 7. Switch to **Decision Replay** for before/after policy comparison. `policies/enterprise-context-demo.yaml` is available in the selector.
 
+## Asset-owner prioritized remediation queue
+
+After selecting the authoritative asset UUID, **Asset 360** now presents an
+**Asset owner priority queue** above the raw evidence tables. It answers:
+
+- Which candidate vulnerability fixes or failed CIS controls should this asset owner **investigate first**?
+- Which active vulnerabilities have **explicitly rule-qualified, same-UUID** failed CIS controls, and what are the related control titles/rationales?
+- How do preserved Tenable severity/VPR, verified CMDB context and named ContextIQ policy contributions explain the ordering?
+- Who is the support group, **only when supplied through a verified CMDB mapping**?
+
+The new read-only helper `asset_remediation_queue()` uses the **same finding
+evaluator** and **same candidate group identity** as the global Fix Groups
+engine. It processes **all active vulnerabilities and failed CIS checks for
+that selected UUID**, then sorts by contextual group score; on ties it favors
+groups with more distinct compounded vulnerabilities, then distinct related
+failed CIS controls, then number of findings and stable ID. No number of
+relationships is directly added to the risk score, and the result is **not**
+a separate AI-calculated threat score. For an equally scored group, remaining
+tie-breaks are ordering conventions, not validated differences in risk.
+
+The UI displays up to 30 candidate work items and permits drilldown into one
+item's exact policy contribution, sampled finding IDs, and related failed CIS
+control evidence. If more groups exist, the table says how many are omitted.
+A *candidate* group is not proof that one change fixes all its findings. No
+work tickets, patches or vendor API writes are created.
+
+**Screenshot-driven fix:** The older UI fetched a combined first 200 rows
+ordered by `kind`, which could return 200 compliance findings before **any**
+vulnerabilities. Asset 360 now reserves a bounded evidence budget for **both**
+types and reallocates unused capacity. For example, an asset with 379
+vulnerabilities and 333 compliance findings will display 100 of each, rather
+than an empty vulnerability table. **All** records remain counted and are
+included in the asset-owner queue, regardless of the display limit.
+
+**Relationship semantics:** 594 same-asset correlations means 594 matching
+vulnerability/CIS *relationships*, **not** 594 independently validated attack
+paths, distinct controls, or confirmed exploitable vulnerabilities. The queue
+counts distinct related failed CIS controls per work group. In particular,
+software-family heuristics (such as using port 445 to infer SMB) and broad
+control-title matchers may require expert validation before operational use.
+
 ## Data and safety boundaries
 
 - The **Asset 360 dossier** uses `src/threatweave/ui_workflows.py:asset_360()` and the existing `get_asset_exposure()` evaluator. It does not invent new correlations or risk scores.

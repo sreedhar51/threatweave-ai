@@ -46,7 +46,10 @@ def asset_360(store, asset_id, policy, *, limit=200):
 
     validate_policy(policy)
     limit = max(1, min(int(limit), 200))
-    exposure = get_asset_exposure(store, asset_id, limit=limit, policy=policy)
+    # Load the identity/approved CMDB through the existing helper, but fetch
+    # bounded vulnerability and CIS evidence independently. Ordering combined
+    # findings by kind used to hide ALL vulnerabilities on CIS-heavy assets.
+    exposure = get_asset_exposure(store, asset_id, limit=1, policy=None)
     if not exposure['asset']:
         return None
 
@@ -67,19 +70,38 @@ def asset_360(store, asset_id, policy, *, limit=200):
             'SELECT COUNT(*) FROM correlations WHERE asset_id=?', (asset_id,)).fetchone()[0],
         'verified_cmdb': len(exposure['cmdb']),
     }
-    evaluations = {x['finding_id']: x for x in exposure['finding_evaluations']}
+    from .engine import _contexts, _risk_context
+    from .policy import evaluate_finding
+    # Split the bounded evidence budget across kinds, then give any unused
+    # budget to the other kind; empty CIS must not hide vulnerability rows.
+    vuln_quota = min(totals['vulnerabilities'], max(1,limit//2))
+    cis_quota = min(totals['cis_findings'], limit-vuln_quota)
+    vuln_quota += min(totals['vulnerabilities']-vuln_quota,
+                      limit-vuln_quota-cis_quota)
+    cis_quota += min(totals['cis_findings']-cis_quota,
+                     limit-vuln_quota-cis_quota)
+    correlated_ids = {r['vuln_id'] for r in store.db.execute(
+        'SELECT DISTINCT vuln_id FROM correlations WHERE asset_id=?', (asset_id,))}
+    mapped = _contexts(store)
     rows = []
-    for f in exposure['findings']:
-        evaluation = evaluations.get(f['finding_id'], {})
-        rows.append({
-            'finding_id': f['finding_id'], 'source_kind': f['kind'],
-            'title': f['title'], 'status': f['status'],
-            'scanner_severity': f['severity'], 'scanner_vpr': f['vpr'],
-            'contextual_score': evaluation.get('contextual_score'),
-            'contextual_priority': evaluation.get('contextual_priority'),
-            'matched_rules': ', '.join(evaluation.get('matched_rules', [])),
-            'evidence_flags': ', '.join(evaluation.get('evidence_flags', [])),
-        })
+    for kind in ('vulnerability', 'compliance'):
+        for record in store.db.execute(
+            """SELECT * FROM findings WHERE asset_id=? AND kind=?
+               ORDER BY finding_id LIMIT ?""", (asset_id,kind,
+                                           vuln_quota if kind=='vulnerability' else cis_quota)):
+            f=dict(record)
+            context = _risk_context(exposure['asset'], mapped, f,
+                                    f['finding_id'] in correlated_ids)
+            evaluation = evaluate_finding(f, context, policy)
+            rows.append({
+                'finding_id': f['finding_id'], 'source_kind': f['kind'],
+                'title': f['title'], 'status': f['status'],
+                'scanner_severity': f['severity'], 'scanner_vpr': f['vpr'],
+                'contextual_score': evaluation['score'],
+                'contextual_priority': evaluation['priority'],
+                'matched_rules': ', '.join(c['rule_id'] for c in evaluation['contributions']),
+                'evidence_flags': ', '.join(evaluation['evidence_flags']),
+            })
     groups = store.rows(
         """SELECT f.group_id, COUNT(*) AS findings, MIN(f.kind) AS kind
            FROM findings f WHERE f.asset_id=? AND f.group_id IS NOT NULL
@@ -98,12 +120,147 @@ def asset_360(store, asset_id, policy, *, limit=200):
         'findings': rows,
         'vulnerabilities': [x for x in rows if x['source_kind']=='vulnerability'],
         'cis': [x for x in rows if x['source_kind']=='compliance'],
-        'correlated_cis_evidence': exposure['correlated_cis_evidence'],
+        'correlated_cis_evidence': [
+            {'vulnerability_finding_id':r['vuln_id'],
+             'compliance_finding_id':r['compliance_id'],
+             'compliance_title':r['title'], 'compliance_status':r['status'],
+             'rule_id':r['rule_id'], 'rationale':r['rationale']}
+            for r in store.rows(
+                """SELECT c.vuln_id,c.compliance_id,c.rule_id,c.rationale,
+                          f.title,f.status
+                   FROM correlations c JOIN findings f
+                   ON c.compliance_id=f.finding_id AND c.asset_id=f.asset_id
+                   WHERE c.asset_id=? ORDER BY c.vuln_id,c.compliance_id,c.rule_id
+                   LIMIT 100""", (asset_id,))],
         'cmdb': exposure['cmdb'],
         'fix_group_refs': groups,
         'same_hostname_asset_count': same_hostname,
         'identity_note': 'Authoritative UUID is the grouping key; hostname is display/search only.',
         'reachability_note': exposure['cross_asset_attack_path'],
+    }
+
+
+
+def asset_remediation_queue(store, asset_id, policy, *, limit=30):
+    """Deterministic UUID-scoped, actionable finding groups with CIS link evidence.
+
+    Uses the same ContextIQ evaluator and group_key as the global Fix Groups.
+    A 'compounded' indicator means a rule-qualified same-UUID relationship,
+    not a proven exploit chain or a multiplication of risk.
+    """
+    from .engine import ACTIVE, FAILED, VENDOR_SEVERITY_ORDER, _contexts, _risk_context, group_key
+    from .policy import evaluate_finding, priority, validate_policy
+
+    validate_policy(policy)
+    limit = max(1, min(int(limit), 100))
+    asset_rows = store.rows('SELECT * FROM assets WHERE asset_id=?', (asset_id,))
+    if not asset_rows:
+        return {'asset_id':asset_id, 'items':[], 'total_groups':0, 'missing_asset':True}
+    asset = asset_rows[0]
+    mapped = _contexts(store)
+    links = store.rows(
+        """SELECT c.vuln_id, c.compliance_id, c.rule_id, c.rationale,
+                  f.title AS compliance_title, f.status AS compliance_status,
+                  f.control_id AS control_id
+           FROM correlations c
+           JOIN findings f ON f.finding_id=c.compliance_id AND f.asset_id=c.asset_id
+           WHERE c.asset_id=?
+           ORDER BY c.vuln_id, c.compliance_id, c.rule_id""", (asset_id,))
+    by_vuln = {}
+    for link in links:
+        by_vuln.setdefault(link['vuln_id'], []).append(link)
+
+    groups = {}
+    for row in store.db.execute(
+        """SELECT * FROM findings WHERE asset_id=? AND kind IN ('vulnerability','compliance')
+           ORDER BY finding_id""", (asset_id,)):
+        finding = dict(row)
+        kind = finding['kind']
+        status = str(finding.get('status') or '').upper()
+        if kind == 'vulnerability' and status not in ACTIVE:
+            continue
+        if kind == 'compliance' and status not in FAILED:
+            continue
+        related = by_vuln.get(finding['finding_id'], []) if kind=='vulnerability' else []
+        outcome = evaluate_finding(
+            finding, _risk_context(asset, mapped, finding, bool(related)), policy)
+        gid, label, quality = group_key(finding)
+        item = groups.setdefault(gid, {
+            'fix_group_id':gid, 'label':label, 'kind':kind, 'mapping_quality':quality,
+            'score':0.0, 'priority':'low', 'finding_count':0,
+            'max_vendor_severity':None, 'max_vendor_vpr':None,
+            'finding_ids':[], 'matched_rules':set(), 'evidence_flags':set(),
+            'rule_contributions':{}, 'correlated_vuln_ids':set(),
+            'linked_control_ids':set(), 'linked_cis_evidence':{}, 'top_finding_id':None})
+        item['finding_count'] += 1
+        if len(item['finding_ids']) < 15:
+            item['finding_ids'].append(finding['finding_id'])
+        original_severity = str(finding.get('severity') or '').lower()
+        current_severity = str(item['max_vendor_severity'] or '').lower()
+        if original_severity and VENDOR_SEVERITY_ORDER.get(original_severity,-1) > VENDOR_SEVERITY_ORDER.get(current_severity,-1):
+            item['max_vendor_severity'] = finding['severity']
+        vpr = finding.get('vpr')
+        if vpr is not None and (item['max_vendor_vpr'] is None or vpr > item['max_vendor_vpr']):
+            item['max_vendor_vpr'] = vpr
+        if outcome['score'] > item['score'] or item['top_finding_id'] is None:
+            item['score'] = outcome['score']
+            item['top_finding_id'] = finding['finding_id']
+        item['matched_rules'].update(c['rule_id'] for c in outcome['contributions'])
+        item['evidence_flags'].update(outcome['evidence_flags'])
+        for contribution in outcome['contributions']:
+            rid = contribution['rule_id']
+            item['rule_contributions'][rid] = max(
+                item['rule_contributions'].get(rid, 0), contribution['delta'])
+        if related:
+            item['correlated_vuln_ids'].add(finding['finding_id'])
+        for link in related:
+            cid = link['compliance_id']
+            item['linked_control_ids'].add(cid)
+            if cid not in item['linked_cis_evidence']:
+                item['linked_cis_evidence'][cid] = {
+                    'compliance_finding_id':cid,
+                    'control_id':link['control_id'],
+                    'title':link['compliance_title'],
+                    'status':link['compliance_status'],
+                    'relation_rules':set(),
+                    'rationale':set()}
+            item['linked_cis_evidence'][cid]['relation_rules'].add(link['rule_id'])
+            item['linked_cis_evidence'][cid]['rationale'].add(link['rationale'])
+
+    items = []
+    for item in groups.values():
+        item['priority'] = priority(item['score'])
+        item['compounded_vulnerabilities'] = len(item.pop('correlated_vuln_ids'))
+        item['related_failed_cis_controls'] = len(item.pop('linked_control_ids'))
+        item['matched_rules'] = sorted(item['matched_rules'])
+        item['evidence_flags'] = sorted(item['evidence_flags'])
+        item['rule_contributions'] = dict(sorted(item['rule_contributions'].items()))
+        item['linked_cis_evidence'] = [
+            {**{k:v for k,v in data.items() if k not in ('relation_rules','rationale')},
+             'relation_rules':sorted(data['relation_rules']),
+             'rationale':sorted(data['rationale'])}
+            for _,data in sorted(item['linked_cis_evidence'].items())
+        ]
+        items.append(item)
+
+    # Equal scores: explicit compounded evidence comes first; finding count
+    # is only a deterministic tie-breaker, never an additional risk multiplier.
+    items.sort(key=lambda i:(-i['score'], -i['compounded_vulnerabilities'],
+                             -i['related_failed_cis_controls'], -i['finding_count'],
+                             i['fix_group_id']))
+    for rank,item in enumerate(items,start=1):
+        item['asset_rank'] = rank
+    verified_cmdb=store.rows(
+        'SELECT ci_id, business_service, support_group, criticality, environment, role '
+        'FROM cmdb WHERE asset_id=? AND verified=1 ORDER BY ci_id', (asset_id,))
+    owners=sorted({m['support_group'] for m in verified_cmdb if m['support_group']})
+    return {
+        'asset_id':asset_id, 'hostname':asset.get('hostname'),
+        'verified_support_groups':owners, 'owner_is_verified':bool(owners),
+        'items':items[:limit], 'total_groups':len(items),
+        'truncated':len(items)>limit, 'missing_asset':False,
+        'policy_id':policy['policy_id'], 'policy_version':policy['version'],
+        'interpretation':'Candidate investigation order; only explicit same-asset CIS rules count as compounded evidence. No exploit path or remediation success asserted.',
     }
 
 

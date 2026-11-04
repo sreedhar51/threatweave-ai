@@ -113,7 +113,7 @@ def test_enterprise_source_stays_separate_from_tenant_and_loads_correlations(tmp
 
 def test_streamlit_has_visible_asset_360_and_enterprise_loader():
     app=(ROOT/'dashboard/app.py').read_text(encoding='utf-8')
-    assert 'Asset 360 · unified vulnerability, CIS and business evidence' in app
+    assert 'Asset 360 · investigation and next actions' in app
     assert "key='asset360_pick'" in app
     assert "key='load_enterprise_demo'" in app
     assert "source=='Enterprise demo'" in app
