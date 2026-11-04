@@ -160,6 +160,7 @@ def test_readme_restores_architecture_diagram():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text(encoding="utf-8")
-    assert "![ThreatWeave AI architecture" in readme
+    assert "](docs/architecture-diagram.svg)" in readme
+    assert "ThreatWeave AI Architecture" in readme
     assert (root / "docs" / "architecture-diagram.svg").is_file()
     assert "## Setup and How to Run" in readme
