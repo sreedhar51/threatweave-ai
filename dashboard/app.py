@@ -226,256 +226,266 @@ with st.expander('Coverage by source, software family, compliance status and cor
 tab_fixes,tab_policy,tab_replay=st.tabs(['Fix Groups & Assets','Policy & Investigation','Decision Replay'])
 
 with tab_fixes:
-    st.subheader('Evidence-backed candidate remediation groups')
-    st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
-    policy=load_policy(ROOT/'policies/business-context.yaml')
-    groups=cached_ranked(DB,version,digest(policy),json.dumps(policy,sort_keys=True),100)
-    total_ties=0
-    with store.lock:
-        # COUNT groups at the maximum displayed score without materializing all groups in the browser.
-        # Rank computation remains lazy and cacheable; this count describes only the displayed top 100.
+    try:
+        st.subheader('Evidence-backed candidate remediation groups')
+        st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
+        policy=load_policy(ROOT/'policies/business-context.yaml')
+        groups=cached_ranked(DB,version,digest(policy),json.dumps(policy,sort_keys=True),100)
+        total_ties=0
+        with store.lock:
+            # COUNT groups at the maximum displayed score without materializing all groups in the browser.
+            # Rank computation remains lazy and cacheable; this count describes only the displayed top 100.
+            if groups:
+                from collections import Counter
+                score_frequency=Counter(g['score'] for g in groups)
+                total_ties=sum(n for n in score_frequency.values() if n>1)
+        st.caption(f'{total_ties} of {len(groups)} displayed Fix Groups share scores with another displayed group. '
+                   'Ties sort by compounded, critical, production and total assets, then finding count and stable ID.')
         if groups:
-            from collections import Counter
-            score_frequency=Counter(g['score'] for g in groups)
-            total_ties=sum(n for n in score_frequency.values() if n>1)
-    st.caption(f'{total_ties} of {len(groups)} displayed Fix Groups share scores with another displayed group. '
-               'Ties sort by compounded, critical, production and total assets, then finding count and stable ID.')
-    if groups:
-        table=[{'rank':g['rank'],'label':g['label'],
-                'tenable_severity':g.get('max_vendor_severity'),
-                'tenable_vpr':g.get('max_vendor_vpr'),
-                'contextual_priority':g['priority'],'score':g['score'],
-                'assets':g['assets_count'],'production_assets':g['production_assets_count'],
-                'compounded_assets':g['compounded_assets_count'],
-                'why':', '.join(g['matched_rules']) or 'Vendor evidence only'} for g in groups]
-        def highlight_priority(value):
-            return ('color: #e05252; font-weight: bold' if value=='urgent' else
-                    'color: #cc8c28; font-weight: bold' if value=='high' else
-                    'color: #407eac' if value=='medium' else 'color: #299766')
-        import pandas as pd
-        st.dataframe(pd.DataFrame(table).style.map(highlight_priority,subset=['contextual_priority']),
-                     use_container_width=True,hide_index=True)
-        options={g['label']+' · '+g['fix_group_id']:g['fix_group_id'] for g in groups}
-        chosen=st.selectbox('Inspect fix group evidence',list(options),key='fix_group_pick')
-        group_id=options[chosen]
-        with store.lock:
-            evidence=evidence_for_group(store,group_id,limit=25)
-        show_rows('Supporting source evidence',evidence['evidence'])
-        with st.expander('Show raw evidence'):
-            st.json(evidence)
-    else:
-        st.warning('No findings available in this source. Choose an isolated demonstration source if needed.')
-        group_id=None
-
-    st.subheader('Asset investigation')
-    hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
-    scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
-                   key='asset_scope')
-    with store.lock:
-        candidates=asset_choices(store,
-            group_id=group_id if scope=='Current Fix Group' else None,
-            hostname_query=hostname_query,limit=100)
-    if candidates:
-        assets_by_label={
-            (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
-             ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
-        asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
-                                 list(assets_by_label),key='selected_asset')
-        selected_id=assets_by_label[asset_label]
-        st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
-    else:
-        selected_id=None
-        st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
-    contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
-                                  key='contextual_asset')
-    if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
-        with store.lock:
-            st.session_state['asset_investigation']={
-                'db':DB,'asset_id':selected_id,
-                'data':get_asset_exposure(store,selected_id,limit=150,
-                        policy=policy if contextual_asset else None)}
-    investigation=st.session_state.get('asset_investigation')
-    if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
-        result=investigation['data']
-        if not result.get('asset'):
-            st.warning('Selected asset not found in the current database.')
-        else:
-            asset=result['asset']
-            st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
-            st.caption('Tenable UUID: '+str(asset.get('asset_id')))
-            evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
-            finding_rows=[]
-            for finding in result.get('findings',[]):
-                e=evaluation.get(finding['finding_id'],{})
-                finding_rows.append({
-                    'finding_id':finding['finding_id'], 'type':finding['kind'],
-                    'title':finding['title'],'status':finding['status'],
-                    'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
-                    'contextual_score':e.get('contextual_score'),
-                    'contextual_priority':e.get('contextual_priority'),
-                    'matched_rules':', '.join(e.get('matched_rules',[])),
-                    'evidence_flags':', '.join(e.get('evidence_flags',[]))})
-            show_rows('Findings: vendor vs contextual assessment',finding_rows)
-            show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
-            show_rows('Verified CMDB context',[
-                {'business_service':x.get('business_service'),
-                 'criticality':x.get('criticality'),
-                 'support_group':x.get('support_group'),
-                 'environment':x.get('environment')} for x in result.get('cmdb',[])])
-            st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
+            table=[{'rank':g['rank'],'label':g['label'],
+                    'tenable_severity':g.get('max_vendor_severity'),
+                    'tenable_vpr':g.get('max_vendor_vpr'),
+                    'contextual_priority':g['priority'],'score':g['score'],
+                    'assets':g['assets_count'],'production_assets':g['production_assets_count'],
+                    'compounded_assets':g['compounded_assets_count'],
+                    'why':', '.join(g['matched_rules']) or 'Vendor evidence only'} for g in groups]
+            def highlight_priority(value):
+                return ('color: #e05252; font-weight: bold' if value=='urgent' else
+                        'color: #cc8c28; font-weight: bold' if value=='high' else
+                        'color: #407eac' if value=='medium' else 'color: #299766')
+            import pandas as pd
+            st.dataframe(pd.DataFrame(table).style.map(highlight_priority,subset=['contextual_priority']),
+                         use_container_width=True,hide_index=True)
+            options={g['label']+' · '+g['fix_group_id']:g['fix_group_id'] for g in groups}
+            chosen=st.selectbox('Inspect fix group evidence',list(options),key='fix_group_pick')
+            group_id=options[chosen]
+            with store.lock:
+                evidence=evidence_for_group(store,group_id,limit=25)
+            show_rows('Supporting source evidence',evidence['evidence'])
             with st.expander('Show raw evidence'):
-                st.json(result)
+                st.json(evidence)
+        else:
+            st.warning('No findings available in this source. Choose an isolated demonstration source if needed.')
+            group_id=None
+
+        st.subheader('Asset investigation')
+        hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
+        scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
+                       key='asset_scope')
+        with store.lock:
+            candidates=asset_choices(store,
+                group_id=group_id if scope=='Current Fix Group' else None,
+                hostname_query=hostname_query,limit=100)
+        if candidates:
+            assets_by_label={
+                (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
+                 ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
+            asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
+                                     list(assets_by_label),key='selected_asset')
+            selected_id=assets_by_label[asset_label]
+            st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
+        else:
+            selected_id=None
+            st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
+        contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
+                                      key='contextual_asset')
+        if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
+            with store.lock:
+                st.session_state['asset_investigation']={
+                    'db':DB,'asset_id':selected_id,
+                    'data':get_asset_exposure(store,selected_id,limit=150,
+                            policy=policy if contextual_asset else None)}
+        investigation=st.session_state.get('asset_investigation')
+        if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
+            result=investigation['data']
+            if not result.get('asset'):
+                st.warning('Selected asset not found in the current database.')
+            else:
+                asset=result['asset']
+                st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
+                st.caption('Tenable UUID: '+str(asset.get('asset_id')))
+                evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
+                finding_rows=[]
+                for finding in result.get('findings',[]):
+                    e=evaluation.get(finding['finding_id'],{})
+                    finding_rows.append({
+                        'finding_id':finding['finding_id'], 'type':finding['kind'],
+                        'title':finding['title'],'status':finding['status'],
+                        'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
+                        'contextual_score':e.get('contextual_score'),
+                        'contextual_priority':e.get('contextual_priority'),
+                        'matched_rules':', '.join(e.get('matched_rules',[])),
+                        'evidence_flags':', '.join(e.get('evidence_flags',[]))})
+                show_rows('Findings: vendor vs contextual assessment',finding_rows)
+                show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
+                show_rows('Verified CMDB context',[
+                    {'business_service':x.get('business_service'),
+                     'criticality':x.get('criticality'),
+                     'support_group':x.get('support_group'),
+                     'environment':x.get('environment')} for x in result.get('cmdb',[])])
+                st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
+                with st.expander('Show raw evidence'):
+                    st.json(result)
+    except Exception as exc:
+        st.error('Unable to render fixes tab: ' + type(exc).__name__)
 
 with tab_policy:
-    st.subheader('Human-readable contextual policy')
-    active_policy=load_policy(ROOT/'policies/business-context.yaml')
-    if 'pending_draft_yaml' in st.session_state:
-        st.session_state['policy_editor_yaml']=st.session_state.pop('pending_draft_yaml')
-    if 'policy_editor_yaml' not in st.session_state:
-        st.session_state['policy_editor_yaml']=(ROOT/'policies/business-context.yaml').read_text(encoding='utf-8')
-    raw=st.text_area('Edit draft YAML (no changes become active without approval)',
-                     height=285,key='policy_editor_yaml')
-    candidate=None
     try:
-        candidate=validate_policy(yaml.safe_load(raw))
-        st.success('Policy schema validated')
-        changes=rule_diff(active_policy,candidate)
-        st.markdown('**Rule diff against the active policy**')
-        show_rows('Added / removed / modified rules',[
-            {'change':name,'rule_ids':', '.join(changes[name]) or 'None'}
-            for name in ('added','removed','changed')])
-        st.caption(f"Unchanged rules: {changes['unchanged']}")
-    except Exception as exc:
-        st.error(f'Invalid policy: {type(exc).__name__}: {str(exc)[:180]}')
-    if st.button('Preview policy (dry run)',disabled=candidate is None,key='preview_policy'):
-        preview=cached_receipt(DB,version,digest(candidate),json.dumps(candidate,sort_keys=True))
-        st.session_state['preview']={'db':DB,'receipt':preview}
-    preview=st.session_state.get('preview')
-    if preview and preview['db']==DB:
-        result=preview['receipt']
-        st.caption('Unapproved dry-run — no policy change is active')
-        st.metric('Candidate Fix Groups',len(result['rankings']))
-        show_rows('Top candidate decisions',[
-            {k:g.get(k) for k in ('rank','label','priority','score','matched_rules')}
-            for g in result['rankings'][:10]])
-        with st.expander('Show raw receipt'):
-            st.json(result)
-    approved=st.checkbox('I reviewed the rule diff and approve saving this policy locally',key='approve_policy')
-    if st.button('Approve policy and save versioned YAML + receipt',
-                 disabled=candidate is None or not approved,key='approve_receipt'):
+        st.subheader('Human-readable contextual policy')
+        active_policy=load_policy(ROOT/'policies/business-context.yaml')
+        if 'pending_draft_yaml' in st.session_state:
+            st.session_state['policy_editor_yaml']=st.session_state.pop('pending_draft_yaml')
+        if 'policy_editor_yaml' not in st.session_state:
+            st.session_state['policy_editor_yaml']=(ROOT/'policies/business-context.yaml').read_text(encoding='utf-8')
+        raw=st.text_area('Edit draft YAML (no changes become active without approval)',
+                         height=285,key='policy_editor_yaml')
+        candidate=None
         try:
-            with store.lock:
-                saved=save_approved_policy(store,candidate,ROOT/'runtime')
-            st.session_state['approved_policy']=candidate
-            st.session_state['approved_receipt']=saved
-            st.success('Saved local policy and Decision Receipt: '+saved['receipt_id'])
-            show_rows('Saved artifacts',[saved])
-        except (ValueError,OSError) as exc:
-            st.error('Approval artifact save failed: '+str(exc)[:180])
-    with st.expander('Optional: Draft policy with Claude'):
-        request=st.text_input('Describe the policy adjustment',
-                  value='Prioritize payment systems in production',key='claude_policy_request')
-        if st.button('Ask Claude to draft rule',key='draft_claude_rule'):
+            candidate=validate_policy(yaml.safe_load(raw))
+            st.success('Policy schema validated')
+            changes=rule_diff(active_policy,candidate)
+            st.markdown('**Rule diff against the active policy**')
+            show_rows('Added / removed / modified rules',[
+                {'change':name,'rule_ids':', '.join(changes[name]) or 'None'}
+                for name in ('added','removed','changed')])
+            st.caption(f"Unchanged rules: {changes['unchanged']}")
+        except Exception as exc:
+            st.error(f'Invalid policy: {type(exc).__name__}: {str(exc)[:180]}')
+        if st.button('Preview policy (dry run)',disabled=candidate is None,key='preview_policy'):
+            preview=cached_receipt(DB,version,digest(candidate),json.dumps(candidate,sort_keys=True))
+            st.session_state['preview']={'db':DB,'receipt':preview}
+        preview=st.session_state.get('preview')
+        if preview and preview['db']==DB:
+            result=preview['receipt']
+            st.caption('Unapproved dry-run — no policy change is active')
+            st.metric('Candidate Fix Groups',len(result['rankings']))
+            show_rows('Top candidate decisions',[
+                {k:g.get(k) for k in ('rank','label','priority','score','matched_rules')}
+                for g in result['rankings'][:10]])
+            with st.expander('Show raw receipt'):
+                st.json(result)
+        approved=st.checkbox('I reviewed the rule diff and approve saving this policy locally',key='approve_policy')
+        if st.button('Approve policy and save versioned YAML + receipt',
+                     disabled=candidate is None or not approved,key='approve_receipt'):
             try:
-                from threatweave.agent import draft_rule
-                output=draft_rule(request,candidate or active_policy)
-                st.session_state['claude_rule_draft']=output
-            except Exception as exc:
-                st.error('Draft unavailable: '+type(exc).__name__)
-        proposed=st.session_state.get('claude_rule_draft')
-        if proposed:
-            show_rows('Draft rule — not approved',[proposed['draft_rule']])
-            if st.button('Add to YAML editor (draft only)',key='add_claude_to_editor'):
+                with store.lock:
+                    saved=save_approved_policy(store,candidate,ROOT/'runtime')
+                st.session_state['approved_policy']=candidate
+                st.session_state['approved_receipt']=saved
+                st.success('Saved local policy and Decision Receipt: '+saved['receipt_id'])
+                show_rows('Saved artifacts',[saved])
+            except (ValueError,OSError) as exc:
+                st.error('Approval artifact save failed: '+str(exc)[:180])
+        with st.expander('Optional: Draft policy with Claude'):
+            request=st.text_input('Describe the policy adjustment',
+                      value='Prioritize payment systems in production',key='claude_policy_request')
+            if st.button('Ask Claude to draft rule',key='draft_claude_rule'):
                 try:
-                    st.session_state['pending_draft_yaml']=add_drafted_rule_to_yaml(raw,proposed)
-                    st.session_state['preview']=None
-                    st.rerun()
-                except (ValueError,TypeError) as exc:
-                    st.error('Draft rejected: '+str(exc)[:180])
-    if st.button('Run standalone guided investigation (no API key)',key='guided_agent'):
-        from threatweave.agent import guided_investigation
-        output=guided_investigation(DB,str(ROOT/'policies/business-context.yaml'))
-        show_rows('Read-only agent investigation',output.get('investigations',[]))
-        with st.expander('Show raw evidence'):
-            st.json(output)
-    with st.expander('Optional: Ask Claude to investigate'):
-        question=st.text_area('Question for the read-only evidence agent',
-                    value='Which fixes changed priority because of CIS evidence?',key='claude_question')
-        if st.button('Ask ThreatWeave Agent',key='ask_agent'):
-            try:
-                from threatweave.agent import investigate
-                st.write(investigate(question,DB,str(ROOT/'policies/business-context.yaml')))
-            except Exception as exc:
-                st.error('Agent unavailable: '+type(exc).__name__)
+                    from threatweave.agent import draft_rule
+                    output=draft_rule(request,candidate or active_policy)
+                    st.session_state['claude_rule_draft']=output
+                except Exception as exc:
+                    st.error('Draft unavailable: '+type(exc).__name__)
+            proposed=st.session_state.get('claude_rule_draft')
+            if proposed:
+                show_rows('Draft rule — not approved',[proposed['draft_rule']])
+                if st.button('Add to YAML editor (draft only)',key='add_claude_to_editor'):
+                    try:
+                        st.session_state['pending_draft_yaml']=add_drafted_rule_to_yaml(raw,proposed)
+                        st.session_state['preview']=None
+                        st.rerun()
+                    except (ValueError,TypeError) as exc:
+                        st.error('Draft rejected: '+str(exc)[:180])
+        if st.button('Run standalone guided investigation (no API key)',key='guided_agent'):
+            from threatweave.agent import guided_investigation
+            output=guided_investigation(DB,str(ROOT/'policies/business-context.yaml'))
+            show_rows('Read-only agent investigation',output.get('investigations',[]))
+            with st.expander('Show raw evidence'):
+                st.json(output)
+        with st.expander('Optional: Ask Claude to investigate'):
+            question=st.text_area('Question for the read-only evidence agent',
+                        value='Which fixes changed priority because of CIS evidence?',key='claude_question')
+            if st.button('Ask ThreatWeave Agent',key='ask_agent'):
+                try:
+                    from threatweave.agent import investigate
+                    st.write(investigate(question,DB,str(ROOT/'policies/business-context.yaml')))
+                except Exception as exc:
+                    st.error('Agent unavailable: '+type(exc).__name__)
+    except Exception as exc:
+        st.error('Unable to render policy tab: ' + type(exc).__name__)
 
 with tab_replay:
-    replay_mode=st.radio('Replay scenario',
-        ['Policy/receipt comparison','Staged evidence (synthetic)'],horizontal=True,
-        key='replay_mode')
-    if replay_mode=='Policy/receipt comparison':
-        st.subheader('DecisionTrace — compare saved evidence or policies')
-        st.caption('A pair of policy inputs runs on the same active dataset; a saved receipt preserves its original evidence fingerprint.')
-        policies={p.name: p for p in sorted((ROOT/'policies').glob('*.yaml'))
-                  if p.name not in ('correlation-rules.yaml','software-families.yaml')}
-        policies.update({'approved · '+p.name:p for p in sorted(RUNTIME_POLICIES.glob('*.yaml'))})
-        saved=list_receipt_files(RECEIPTS)
-        options={**{'Policy · '+name:('policy',path) for name,path in policies.items()},
-                 **{'Receipt · '+name:('receipt',path) for name,path in ((p.name,p) for p in saved)}}
-        if st.session_state.get('approved_policy'):
-            options['Draft approved in this session']=('session',None)
-        keys=list(options)
-        if len(keys)<2:
-            st.warning('Save two receipts or configure two policy files to compare.')
+    try:
+        replay_mode=st.radio('Replay scenario',
+            ['Policy/receipt comparison','Staged evidence (synthetic)'],horizontal=True,
+            key='replay_mode')
+        if replay_mode=='Policy/receipt comparison':
+            st.subheader('DecisionTrace — compare saved evidence or policies')
+            st.caption('A pair of policy inputs runs on the same active dataset; a saved receipt preserves its original evidence fingerprint.')
+            policies={p.name: p for p in sorted((ROOT/'policies').glob('*.yaml'))
+                      if p.name not in ('correlation-rules.yaml','software-families.yaml')}
+            policies.update({'approved · '+p.name:p for p in sorted(RUNTIME_POLICIES.glob('*.yaml'))})
+            saved=list_receipt_files(RECEIPTS)
+            options={**{'Policy · '+name:('policy',path) for name,path in policies.items()},
+                     **{'Receipt · '+name:('receipt',path) for name,path in ((p.name,p) for p in saved)}}
+            if st.session_state.get('approved_policy'):
+                options['Draft approved in this session']=('session',None)
+            keys=list(options)
+            if len(keys)<2:
+                st.warning('Save two receipts or configure two policy files to compare.')
+            else:
+                before_label=st.selectbox('Before',keys,index=0,key='replay_before')
+                after_label=st.selectbox('After',keys,index=1,key='replay_after')
+                if st.button('Compare selected inputs',key='compare_selected_replay'):
+                    try:
+                        def resolve(label):
+                            kind,path=options[label]
+                            if kind=='receipt':return read_receipt(path)
+                            selected=(st.session_state['approved_policy'] if kind=='session'
+                                      else load_policy(path))
+                            return cached_receipt(DB,version,digest(selected),json.dumps(selected,sort_keys=True))
+                        before=resolve(before_label)
+                        after=resolve(after_label)
+                        st.session_state['replay_result']={'db':DB,
+                            'comparison':rank_replay(before,after,limit=25)}
+                    except (ValueError,OSError,KeyError,TypeError) as exc:
+                        st.error('Replay unavailable: '+str(exc)[:180])
+                compared=st.session_state.get('replay_result')
+                if compared and compared['db']==DB:
+                    show_replay_results(compared['comparison'])
+            st.caption('Rank movements explain computed decisions, not independent scanner correctness.')
         else:
-            before_label=st.selectbox('Before',keys,index=0,key='replay_before')
-            after_label=st.selectbox('After',keys,index=1,key='replay_after')
-            if st.button('Compare selected inputs',key='compare_selected_replay'):
-                try:
-                    def resolve(label):
-                        kind,path=options[label]
-                        if kind=='receipt':return read_receipt(path)
-                        selected=(st.session_state['approved_policy'] if kind=='session'
-                                  else load_policy(path))
-                        return cached_receipt(DB,version,digest(selected),json.dumps(selected,sort_keys=True))
-                    before=resolve(before_label)
-                    after=resolve(after_label)
-                    st.session_state['replay_result']={'db':DB,
-                        'comparison':rank_replay(before,after,limit=25)}
-                except (ValueError,OSError,KeyError,TypeError) as exc:
-                    st.error('Replay unavailable: '+str(exc)[:180])
-            compared=st.session_state.get('replay_result')
-            if compared and compared['db']==DB:
-                show_replay_results(compared['comparison'])
-        st.caption('Rank movements explain computed decisions, not independent scanner correctness.')
-    else:
-        st.subheader('DecisionTrace — staged evidence replay')
-        st.info('Synthetic scenario: three independent databases and one unchanged policy.')
-        staged_count=st.selectbox('Additional synthetic assets per stage',[0,5000,50000],key='staged_asset_count')
-        if st.button('Run synthetic evidence stages',key='run_stages'):
-            from threatweave.staged import run_staged_demo
-            with st.spinner('Computing three deterministic evidence snapshots...'):
-                release_stores()
-                st.session_state['staged_evidence']=run_staged_demo(STAGED_DIR,n_assets=staged_count)
-                invalidate_caches()
-                st.rerun()
-        staged=st.session_state.get('staged_evidence')
-        if staged:
-            show_rows('Elapsed time per stage (seconds)',[
-                {'stage':name,'seconds':seconds} for name,seconds in staged['elapsed_seconds_per_stage'].items()])
-            a,b=st.columns(2)
-            a.metric('Groups moved after CIS',staged['stage1_to_stage2']['moved_group_count'])
-            b.metric('Groups moved after CMDB',staged['stage2_to_stage3']['moved_group_count'])
-            st.markdown('**Evidence changed after CIS:** '+', '.join(staged['stage1_to_stage2']['evidence_changed']))
-            st.markdown('**Evidence changed after CMDB:** '+', '.join(staged['stage2_to_stage3']['evidence_changed']))
-            st.subheader('pay-web-01 · synthetic hero asset')
-            for name,hero_groups in staged['hero_fix_groups'].items():
-                with st.expander(name,expanded=name=='stage3_plus_cmdb'):
-                    show_rows('Compounded candidate Fix Groups',[
-                        {k:g.get(k) for k in ('label','rank','score','priority',
-                         'compounded_assets_count','matched_rules')} for g in hero_groups])
-            with st.expander('Show raw receipt comparisons'):
-                st.json({'cis_added':staged['stage1_to_stage2'],
-                         'cmdb_added':staged['stage2_to_stage3']})
-            st.caption(staged['evidence_note'])
+            st.subheader('DecisionTrace — staged evidence replay')
+            st.info('Synthetic scenario: three independent databases and one unchanged policy.')
+            staged_count=st.selectbox('Additional synthetic assets per stage',[0,5000,50000],key='staged_asset_count')
+            if st.button('Run synthetic evidence stages',key='run_stages'):
+                from threatweave.staged import run_staged_demo
+                with st.spinner('Computing three deterministic evidence snapshots...'):
+                    release_stores()
+                    st.session_state['staged_evidence']=run_staged_demo(STAGED_DIR,n_assets=staged_count)
+                    invalidate_caches()
+                    st.rerun()
+            staged=st.session_state.get('staged_evidence')
+            if staged:
+                show_rows('Elapsed time per stage (seconds)',[
+                    {'stage':name,'seconds':seconds} for name,seconds in staged['elapsed_seconds_per_stage'].items()])
+                a,b=st.columns(2)
+                a.metric('Groups moved after CIS',staged['stage1_to_stage2']['moved_group_count'])
+                b.metric('Groups moved after CMDB',staged['stage2_to_stage3']['moved_group_count'])
+                st.markdown('**Evidence changed after CIS:** '+', '.join(staged['stage1_to_stage2']['evidence_changed']))
+                st.markdown('**Evidence changed after CMDB:** '+', '.join(staged['stage2_to_stage3']['evidence_changed']))
+                st.subheader('pay-web-01 · synthetic hero asset')
+                for name,hero_groups in staged['hero_fix_groups'].items():
+                    with st.expander(name,expanded=name=='stage3_plus_cmdb'):
+                        show_rows('Compounded candidate Fix Groups',[
+                            {k:g.get(k) for k in ('label','rank','score','priority',
+                             'compounded_assets_count','matched_rules')} for g in hero_groups])
+                with st.expander('Show raw receipt comparisons'):
+                    st.json({'cis_added':staged['stage1_to_stage2'],
+                             'cmdb_added':staged['stage2_to_stage3']})
+                st.caption(staged['evidence_note'])
 
-# Cached Store closes at interpreter shutdown, not at each Streamlit rerun.
+    # Cached Store closes at interpreter shutdown, not at each Streamlit rerun.
+    except Exception as exc:
+        st.error('Unable to render replay tab: ' + type(exc).__name__)
+
