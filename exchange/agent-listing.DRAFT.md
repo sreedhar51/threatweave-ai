@@ -1,4 +1,5 @@
 ---
+last_reviewed: 2026-11-04
 name: "ThreatWeave AI"
 author: "sreedhar51"
 github_url: "https://github.com/sreedhar51/threatweave-ai"
@@ -9,8 +10,6 @@ tags: ["vuln-management", "exposure-management", "compliance", "risk-prioritizat
 domains: ["vulnerability-management", "governance-risk-compliance"]
 integrations: ["Tenable", "Anthropic"]
 date_added: 2026-11-04
-# REQUIRED BEFORE SUBMISSION: replace the example below with the real ISO 8601 UTC
-# timestamp when YOU accepted the CyberAgents Contribution Agreement.
 contribution_agreement_date: 2026-11-04T05:30:00Z
 works_with_tenable_hexa_mcp: false
 ---
@@ -42,15 +41,20 @@ ThreatWeave does not infer cross-host attack paths or network reachability. Its 
 
 Python **3.11+** is required. The synthetic demo needs **no Tenable or Anthropic credentials**.
 
+The separate [enterprise contextual-policy demonstration](https://github.com/sreedhar51/threatweave-ai/blob/main/docs/ENTERPRISE_CONTEXT_DEMO.md) uses fictional payment, identity, recovery, administrator-workstation and development evidence to show before/after decisions without changing vendor severity or VPR. Its weights are illustrative and require human validation before production use.
+
 ~~~bash
 git clone https://github.com/sreedhar51/threatweave-ai.git
 cd threatweave-ai
-python -m pip install -e '.[dev,ui]'
+python -m venv .venv
+source .venv/bin/activate                    # macOS/Linux; Windows steps are in the README
+python -m pip install -e '.[dev,ui,mcp]'
 
 # Offline evidence-to-decision workflow
 threatweave --db runtime/demo.db demo
 threatweave --db runtime/demo.db investigate
 threatweave demo --staged                    # same policy, three evidence stages
+python scripts/contextual_policy_demo.py      # fictional enterprise context, same dataset, different policies
 python scripts/ship_check.py --repeat 3      # three clean runs, identical receipts
 
 # Claude layers (set ANTHROPIC_API_KEY first)
@@ -62,7 +66,7 @@ threatweave --db runtime/demo.db ask "Which fix group should we investigate firs
 streamlit run dashboard/app.py
 ~~~
 
-To use it from Claude Code, open the repository as the project: it ships `.mcp.json` and a `threatweave` subagent limited to the six read-only MCP tools.
+To use it from Claude Code, launch `claude` from the repository root in the same shell where you activated the Python environment used for installation (see the [Claude Code setup](https://github.com/sreedhar51/threatweave-ai#claude-code-agent-and-mcp-server)): it ships `.mcp.json` and a `threatweave` subagent limited to the six read-only MCP tools.
 
 **Source and documentation:** [ThreatWeave AI](https://github.com/sreedhar51/threatweave-ai) · [Setup and How to Run](https://github.com/sreedhar51/threatweave-ai#setup-and-how-to-run) · [How Claude fits](https://github.com/sreedhar51/threatweave-ai#how-claude-fits) · [Architecture](https://github.com/sreedhar51/threatweave-ai/blob/main/docs/ARCHITECTURE.md)
 
