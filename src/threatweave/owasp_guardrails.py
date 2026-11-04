@@ -130,9 +130,11 @@ def wrap_untrusted_evidence(evidence: Any) -> Dict[str, Any]:
     Demarcates tool output as untrusted source data, never instructions.
     Includes prompt injection detection flags if heuristic patterns are found in evidence.
     """
-    # Prevent double wrapping
+    # Source-provided security metadata is not authoritative. Re-check the
+    # payload even when an upstream tool already wrapped the response, so an
+    # attacker cannot bypass redaction/injection checks with a forged wrapper.
     if isinstance(evidence, dict) and "_security_context" in evidence and "payload" in evidence:
-        return evidence
+        evidence = evidence["payload"]
 
     scrubbed = scrub_data(evidence)
     has_injection_flag = detect_injection_heuristics(scrubbed)
@@ -237,7 +239,7 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     # LLM03: Supply Chain Vulnerabilities (DESIGN)
     llm_audit["LLM03_supply_chain"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Minimal dependencies via pyproject.toml; offline-first core operates without remote model downloads or dynamic code fetches",
     }
 
@@ -281,14 +283,14 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     # LLM07: System Prompt Leakage (DESIGN)
     llm_audit["LLM07_system_prompt_leakage"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Prompt boundary insulation; no reflective prompt-echo tools; agent instructions explicitly restrict execution to tool results",
     }
 
     # LLM08: Vector and Embedding Weaknesses (DESIGN)
     llm_audit["LLM08_vector_embedding_weaknesses"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "No unverified vector embeddings used for authorization or exposure triage; relational index anchors identity and correlation",
     }
 
@@ -347,14 +349,14 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     # ASI03: Identity and Privilege Abuse (DESIGN)
     agentic_audit["ASI03_identity_privilege_abuse"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Authoritative Tenable UUID identity; IP-based joins prohibited; unverified CMDB mappings quarantined; read-only credentials",
     }
 
     # ASI04: Agentic Supply Chain Vulnerabilities (DESIGN)
     agentic_audit["ASI04_agentic_supply_chain"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "No dynamic remote tool or agent downloads; dependency footprint isolated in pyproject.toml extras",
     }
 
@@ -381,28 +383,28 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     # ASI07: Insecure Inter-Agent Communication (DESIGN)
     agentic_audit["ASI07_insecure_inter_agent_communication"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Local STDIO transport for MCP; typed tool contracts; deterministic guided investigator functions without network dependencies",
     }
 
     # ASI08: Cascading Failures (DESIGN)
     agentic_audit["ASI08_cascading_failures"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Turn budget caps (5 iterations); exceptions trapped as structured errors; circuit breaker stops on budget exhaustion",
     }
 
     # ASI09: Human-Agent Trust Exploitation (DESIGN)
     agentic_audit["ASI09_human_agent_trust_exploitation"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Draft-only policy generation requiring human approval; explainable Decision Receipts distinguish data deltas from policy changes",
     }
 
     # ASI10: Rogue Agents (DESIGN)
     agentic_audit["ASI10_rogue_agents"] = {
         "status": "DESIGN",
-        "passed": True,
+        "passed": None,
         "evidence": "Read-only architectural invariant; zero mutation capabilities to patch, scan, modify configs, or write back to vendors",
     }
 
@@ -412,6 +414,7 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
     failed_controls = [c for c in all_controls if c.get("passed") is False or c["status"] == "FAIL"]
 
     verdict = "FAIL" if failed_controls else "PASS"
+    tested_failed = [c for c in tested_controls if c.get("passed") is False or c["status"] == "FAIL"]
 
     return {
         "verdict": verdict,
@@ -423,8 +426,8 @@ def audit_owasp_compliance(store: Any, policy_path: Optional[str] = None) -> Dic
             "tested": len(tested_controls),
             "design": len(design_controls),
             "tested_controls": len(tested_controls),
-            "tested_passed": len(tested_controls) - len(failed_controls),
-            "tested_failed": len(failed_controls),
+            "tested_passed": len(tested_controls) - len(tested_failed),
+            "tested_failed": len(tested_failed),
             "design_controls": len(design_controls),
             "counts": f"{len(tested_controls)} tested, {len(design_controls)} design",
         },

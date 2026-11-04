@@ -131,3 +131,36 @@ def test_ties_sort_compounded_before_asset_count(tmp_path):
         assert groups[0]['assets_count']==1 and groups[1]['assets_count']==2
         assert groups[0]['label']=='Patch A'
     finally:s.close()
+
+
+def test_dashboard_buttons_unique_keys_and_tabs_are_guarded():
+    import ast
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "dashboard" / "app.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    buttons = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+               and isinstance(n.func.value, ast.Name) and n.func.value.id == "st"
+               and n.func.attr == "button"]
+    assert buttons
+    keys = [next((k.value.value for k in call.keywords
+                  if k.arg == "key" and isinstance(k.value, ast.Constant)), None)
+            for call in buttons]
+    assert all(keys), "Every Streamlit button must have an explicit key"
+    assert len(keys) == len(set(keys)), "Streamlit button keys must be unique"
+    tabs = [n for n in tree.body if isinstance(n, ast.With)
+            and isinstance(n.items[0].context_expr, ast.Name)
+            and n.items[0].context_expr.id in ("tab_fixes", "tab_policy", "tab_replay")]
+    assert len(tabs) == 3
+    assert all(any(isinstance(stmt, ast.Try) and stmt.handlers
+                   for stmt in tab.body) for tab in tabs)
+
+
+def test_readme_restores_architecture_diagram():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "](docs/architecture-diagram.svg)" in readme
+    assert "ThreatWeave AI Architecture" in readme
+    assert (root / "docs" / "architecture-diagram.svg").is_file()
+    assert "## Setup and How to Run" in readme

@@ -19,7 +19,12 @@ findings and policy rules that produced it.
 > 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt
 > reproduced byte-for-byte on a second run. See [build status](docs/BUILD_STATUS.md).
 
-![ThreatWeave architecture](docs/architecture-diagram.svg)
+**ThreatWeave AI Architecture**  
+*Unified Vulnerability and Compliance Prioritization by Correlating Exposure, Compliance, and Business Context*
+
+![ThreatWeave AI Architecture — evidence sources, correlation, policy, and DecisionTrace](docs/architecture-diagram.svg)
+
+See [architecture details](docs/ARCHITECTURE.md) and [pitch-deck messaging](docs/PITCH_MESSAGING.md).
 
 ## How it works
 
@@ -66,7 +71,7 @@ Each stage writes its own receipt, and the replay shows the source fingerprint
 changing (`compliance`, `correlations`, then `cmdb`) while the policy fingerprint stays
 fixed. All demo hosts, identifiers, and CIS controls are synthetic.
 
-## Quick start
+## Setup and How to Run
 
 Requires Python 3.11 or newer and Git. The demo needs no Tenable account or API key.
 

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1330" viewBox="0 0 1600 1330" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1362" viewBox="0 0 1600 1362" role="img" aria-labelledby="title desc">
 <title id="title">ThreatWeave AI architecture</title>
-<desc id="desc">Three input sources: Tenable asynchronous export, security files, and ServiceNow CMDB export feed DataBridge. DataBridge normalizes records into a SQLite evidence store. Asset context, exposure correlation, and remediation grouping feed ContextIQ policy decisions, then DecisionTrace receipts and a read-only AI agent with MCP tools and dashboard. Future API connectors are explicitly labeled as planned.</desc>
+<desc id="desc">ThreatWeave AI Architecture: Unified Vulnerability and Compliance Prioritization by Correlating Exposure, Compliance, and Business Context. Three input sources: Tenable asynchronous export, security files, and ServiceNow CMDB export feed DataBridge. DataBridge normalizes records into a SQLite evidence store. Asset context, exposure correlation, and remediation grouping feed ContextIQ policy decisions, then DecisionTrace receipts and a read-only AI agent with MCP tools and dashboard. Future API connectors are explicitly labeled as planned.</desc>
 <defs>
  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071422"/><stop offset=".55" stop-color="#10223a"/><stop offset="1" stop-color="#071421"/></linearGradient>
  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#173049"/><stop offset="1" stop-color="#112437"/></linearGradient>
@@ -20,16 +20,18 @@
  .footer{font-size:16px;fill:#9cbbca}
  </style>
 </defs>
-<rect width="1600" height="1330" rx="30" fill="url(#bg)"/>
-<rect width="1600" height="1330" rx="30" fill="url(#grid)"/>
-<rect x="0" y="0" width="13" height="1330" rx="6" fill="#53d5ce"/>
+<rect width="1600" height="1362" rx="30" fill="url(#bg)"/>
+<rect width="1600" height="1362" rx="30" fill="url(#grid)"/>
+<rect x="0" y="0" width="13" height="1362" rx="6" fill="#53d5ce"/>
 <circle cx="1506" cy="69" r="190" fill="#117a90" opacity=".10"/>
 <circle cx="120" cy="1120" r="260" fill="#2455a5" opacity=".08"/>
 
 <text x="64" y="55" class="eyebrow">THREATWEAVE AI</text>
-<text x="64" y="110" class="headline">Evidence-first security decision pipeline</text>
+<text x="64" y="105" class="headline">ThreatWeave AI Architecture</text>
+<text x="64" y="145" class="headline-sub">Unified Vulnerability and Compliance Prioritization by Correlating Exposure, Compliance, and Business Context</text>
 <rect x="1272" y="65" width="259" height="32" rx="16" fill="#182d43" stroke="#5de2d1" stroke-opacity=".65"/>
 <text x="1285" y="87" class="pill" fill="#5de2d1">READ-ONLY BY DESIGN</text>
+<g transform="translate(0,32)">
 <text x="64" y="150" class="eyebrow">CURRENT INPUTS</text>
 <rect x="60" y="177" width="458" height="160" rx="21" fill="url(#panel)" stroke="#35536b" stroke-width="1.5"/>
 <rect x="78" y="196" width="47" height="42" rx="12" fill="#173e50" stroke="#50d9ce" stroke-opacity=".65"/>
@@ -112,4 +114,5 @@
 <text x="324" y="1231" class="title">ThreatWeave Agent + Interfaces</text>
 <text x="324" y="1259" class="body">CLI · bounded read-only MCP tools · offline guided investigator · optional Claude · Streamlit</text>
 <text x="65" y="1310" class="footer">Evidence boundaries: unknown ≠ safe     •     Same asset ≠ validated attack path     •     Human approval for policy changes</text>
+</g>
 </svg>
