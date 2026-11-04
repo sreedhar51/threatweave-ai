@@ -72,7 +72,14 @@ def asset_360(store, asset_id, policy, *, limit=200):
     }
     from .engine import _contexts, _risk_context
     from .policy import evaluate_finding
-    per_kind = max(1, limit // 2)
+    # Split the bounded evidence budget across kinds, then give any unused
+    # budget to the other kind; empty CIS must not hide vulnerability rows.
+    vuln_quota = min(totals['vulnerabilities'], max(1,limit//2))
+    cis_quota = min(totals['cis_findings'], limit-vuln_quota)
+    vuln_quota += min(totals['vulnerabilities']-vuln_quota,
+                      limit-vuln_quota-cis_quota)
+    cis_quota += min(totals['cis_findings']-cis_quota,
+                     limit-vuln_quota-cis_quota)
     correlated_ids = {r['vuln_id'] for r in store.db.execute(
         'SELECT DISTINCT vuln_id FROM correlations WHERE asset_id=?', (asset_id,))}
     mapped = _contexts(store)
@@ -80,7 +87,8 @@ def asset_360(store, asset_id, policy, *, limit=200):
     for kind in ('vulnerability', 'compliance'):
         for record in store.db.execute(
             """SELECT * FROM findings WHERE asset_id=? AND kind=?
-               ORDER BY finding_id LIMIT ?""", (asset_id,kind,per_kind)):
+               ORDER BY finding_id LIMIT ?""", (asset_id,kind,
+                                           vuln_quota if kind=='vulnerability' else cis_quota)):
             f=dict(record)
             context = _risk_context(exposure['asset'], mapped, f,
                                     f['finding_id'] in correlated_ids)
