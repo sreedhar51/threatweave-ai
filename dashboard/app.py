@@ -38,7 +38,7 @@ RUNTIME_POLICIES=ROOT/'runtime/policies'
 def show_rows(title, rows, *, empty_message='No data available.'):
     st.markdown('**'+title+'**')
     if rows:
-        st.dataframe(rows, hide_index=True, use_container_width=True)
+        st.dataframe(rows, hide_index=True, use_container_width=True, height=260)
     else:
         st.caption(empty_message)
 
@@ -137,7 +137,9 @@ with st.sidebar:
         st.stop()
     DB=str(path)
     store=open_store(DB)
-    st.caption('Database: '+DB)
+    st.caption('Source: '+('Authorized tenant data' if source=='Tenant' else 'Isolated synthetic data'))
+    with st.expander('Database path'):
+        st.code(DB,language='text')
     st.write('**Source:** '+('Authorized imported tenant records' if source=='Tenant' else 'Isolated synthetic fixtures'))
     if st.button('Load synthetic demo',use_container_width=True,disabled=source!='Synthetic demo',key='load_demo'):
         # Never write demo fixtures into the tenant path.
@@ -152,39 +154,40 @@ with st.sidebar:
         invalidate_caches()
         st.success('Fictional enterprise dataset imported into an isolated local database')
         st.rerun()
-    record_type=st.selectbox('Import record type',['asset','vulnerability','compliance','cmdb'],key='import_type')
-    provider=st.selectbox('Evidence provider',['tenable','servicenow-export','generic-export','synthetic'],key='import_provider')
-    f=st.file_uploader('Upload CSV, JSON, or JSONL',type=['csv','json','jsonl','ndjson'],key='import_file')
-    if st.button('Import uploaded data',disabled=f is None or source in ('Staged demo','Enterprise demo'),key='import_uploaded'):
-        with tempfile.TemporaryDirectory() as td:
-            suffix=Path(f.name).suffix
-            uploaded=Path(td)/('input'+suffix)
-            uploaded.write_bytes(f.getvalue())
+    with st.expander('Data import, correlation maintenance and freshness',expanded=False):
+        record_type=st.selectbox('Import record type',['asset','vulnerability','compliance','cmdb'],key='import_type')
+        provider=st.selectbox('Evidence provider',['tenable','servicenow-export','generic-export','synthetic'],key='import_provider')
+        f=st.file_uploader('Upload CSV, JSON, or JSONL',type=['csv','json','jsonl','ndjson'],key='import_file')
+        if st.button('Import uploaded data',disabled=f is None or source in ('Staged demo','Enterprise demo'),key='import_uploaded'):
+            with tempfile.TemporaryDirectory() as td:
+                suffix=Path(f.name).suffix
+                uploaded=Path(td)/('input'+suffix)
+                uploaded.write_bytes(f.getvalue())
+                try:
+                    with store.lock:
+                        result=ingest_file(store,uploaded,record_type,provider)
+                    invalidate_caches()
+                    show_rows('Import summary',[{k:result.get(k) for k in ('provider','record_type','received','accepted','rejected')}])
+                    with st.expander('Show raw evidence'):
+                        st.json(result)
+                except Exception as exc:
+                    st.error(f'Import failed: {type(exc).__name__}')
+        if st.button('Recompute CIS correlations',disabled=source in ('Staged demo','Enterprise demo'),key='recompute_correlations'):
             try:
                 with store.lock:
-                    result=ingest_file(store,uploaded,record_type,provider)
+                    correlation_report=correlate(store,ROOT/'policies/correlation-rules.yaml')
+                    show_rows('Correlation results',[correlation_report])
                 invalidate_caches()
-                show_rows('Import summary',[{k:result.get(k) for k in ('provider','record_type','received','accepted','rejected')}])
-                with st.expander('Show raw evidence'):
-                    st.json(result)
             except Exception as exc:
-                st.error(f'Import failed: {type(exc).__name__}')
-    if st.button('Recompute CIS correlations',disabled=source in ('Staged demo','Enterprise demo'),key='recompute_correlations'):
-        try:
-            with store.lock:
-                correlation_report=correlate(store,ROOT/'policies/correlation-rules.yaml')
-                show_rows('Correlation results',[correlation_report])
-            invalidate_caches()
-        except Exception as exc:
-            st.error(f'Correlation failed: {type(exc).__name__}')
-    st.markdown('**Data freshness**')
-    with store.lock:
-        recent_runs=store.recent_ingest_runs(limit=5)
-        latest_obs=store.latest_observations()
-    show_rows('Last five imports',recent_runs)
-    show_rows('Latest observed finding per source',latest_obs,
-              empty_message='No finding timestamps supplied.')
-    st.caption('Live Tenable export is available through the CLI using tenant API credentials.')
+                st.error(f'Correlation failed: {type(exc).__name__}')
+        st.markdown('**Data freshness**')
+        with store.lock:
+            recent_runs=store.recent_ingest_runs(limit=5)
+            latest_obs=store.latest_observations()
+        show_rows('Last five imports',recent_runs)
+        show_rows('Latest observed finding per source',latest_obs,
+                  empty_message='No finding timestamps supplied.')
+        st.caption('Live Tenable export is available through the CLI using tenant API credentials.')
 
 st.info(('Authorized tenant evidence (not a synthetic demonstration).' if source=='Tenant' else
          'Synthetic demonstration evidence only.')+
@@ -210,7 +213,7 @@ st.caption('Compliance scan hygiene (not failed controls): '
            f"ERROR {summary.get('compliance_scan_hygiene',{}).get('ERROR',0)}")
 
 st.subheader('Evidence coverage')
-with st.expander('Coverage by source, software family, compliance status and correlation rule',expanded=True):
+with st.expander('Evidence coverage and source quality · details',expanded=False):
     x,y=st.columns(2)
     with x:
         st.markdown('**Asset sources**')
@@ -236,8 +239,8 @@ tab_fixes,tab_policy,tab_replay=st.tabs(['Asset 360 & Fix Groups','Policy & Inve
 
 with tab_fixes:
     try:
-        st.subheader('Asset 360 · unified vulnerability, CIS and business evidence')
-        st.caption('Start with a host, not a fix: one authoritative Tenable asset UUID connects all stored scanner findings, same-asset CIS checks, explicit correlations and verified CMDB context. Hostnames are search labels, never merge keys.')
+        st.subheader('Asset 360 · investigation and next actions')
+        st.caption('Select an asset → review priority work → inspect supporting evidence. Identity is anchored to Tenable UUID; hostname is display/search only.')
         dossier_policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
                                   else ROOT/'policies/business-context.yaml')
         dossier_search=st.text_input('Search assets by hostname (not IP)',key='asset360_search')
@@ -271,9 +274,7 @@ with tab_fixes:
                                ' detailed findings (balanced between vulnerability and CIS evidence). '+
                                'Totals include all stored records for this UUID.')
                 st.subheader('Asset owner priority queue · what should be investigated first?')
-                st.caption('Ranked within this asset from every active vulnerability and failed CIS check, '+
-                           'not only the 200 detailed rows below. A related failed CIS control contributes '+
-                           'compounded context only through a matching rule; no inferred attack path.')
+                st.caption('All active vulnerabilities and failed CIS checks are evaluated. Compounded means rule-qualified CIS support, not a proven attack path.')
                 with store.lock:
                     owner_queue=asset_remediation_queue(store,dossier_id,dossier_policy,limit=30)
                 owners=owner_queue.get('verified_support_groups',[])
@@ -281,15 +282,12 @@ with tab_fixes:
                            'unavailable — owner assignment requires review'))
                 priorities=owner_queue['items']
                 queue_rows=[{
-                    'asset_rank':x['asset_rank'], 'candidate_work':x['label'],
-                    'type':x['kind'], 'contextual_priority':x['priority'],
-                    'score':x['score'], 'vendor_severity':x['max_vendor_severity'],
-                    'vendor_vpr':x['max_vendor_vpr'],
-                    'active_findings_or_failed_checks':x['finding_count'],
-                    'compounded_vulnerabilities':x['compounded_vulnerabilities'],
-                    'related_failed_cis_controls':x['related_failed_cis_controls'],
-                    'why':', '.join(x['matched_rules']) or 'Vendor evidence only',
-                    'flags':', '.join(x['evidence_flags']),
+                    'rank':x['asset_rank'], 'candidate_work':x['label'],
+                    'priority':x['priority'], 'score':round(x['score'],1),
+                    'severity':x['max_vendor_severity'],
+                    'compounded_vulns':x['compounded_vulnerabilities'],
+                    'related_failed_CIS':x['related_failed_cis_controls'],
+                    'why':', '.join(x['matched_rules']) or 'Scanner evidence only'
                 } for x in priorities]
                 show_rows('Prioritized candidate remediation work',queue_rows,
                           empty_message='No active vulnerabilities or failed CIS checks for this UUID.')
@@ -297,160 +295,166 @@ with tab_fixes:
                     st.caption('Showing the top '+str(len(priorities))+' of '+
                                str(owner_queue['total_groups'])+' asset-level candidate groups. '+
                                'Ranking evaluated all eligible findings for this UUID.')
-                if priorities:
-                    selected_work=st.selectbox(
-                        'Explain a prioritized work item',
-                        [str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
-                         for x in priorities],key='asset360_work_item')
-                    chosen_item=priorities[[
-                        str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
-                        for x in priorities].index(selected_work)]
-                    st.markdown('**Decision explanation**')
-                    st.json({
-                        'asset_rank':chosen_item['asset_rank'],
-                        'contextual_score':chosen_item['score'],
-                        'priority':chosen_item['priority'],
-                        'policy':owner_queue['policy_id'],
-                        'source_severity':chosen_item['max_vendor_severity'],
-                        'source_vpr':chosen_item['max_vendor_vpr'],
-                        'rule_contributions':chosen_item['rule_contributions'],
-                        'candidate_group_quality':chosen_item['mapping_quality'],
-                        'sample_finding_ids':chosen_item['finding_ids'],
-                        'evidence_flags':chosen_item['evidence_flags'],
-                    })
-                    show_rows('Related failed CIS controls supporting this work item',
-                              chosen_item['linked_cis_evidence'],
-                              empty_message='No explicit related failed CIS controls for this work item.')
-                st.markdown('**1 · Vulnerability evidence and contextual priorities**')
-                show_rows('Vulnerabilities with preserved scanner values',dossier['vulnerabilities'],
-                          empty_message='No vulnerability findings for the selected UUID.')
-                st.markdown('**2 · CIS compliance posture**')
-                st.caption('Counts reflect all stored CIS statuses. WARNING/ERROR indicate scan hygiene, not failed controls.')
-                show_rows('CIS status breakdown',[
-                    x for x in dossier['status_counts'] if x['kind']=='compliance'],
-                    empty_message='No CIS evidence recorded for this UUID.')
-                show_rows('CIS controls and outcomes',dossier['cis'],
-                          empty_message='No CIS checks within the visible evidence limit.')
-                st.markdown('**3 · Explicit, same-asset vulnerability/CIS relationships**')
-                show_rows('Correlations and rationale',dossier['correlated_cis_evidence'],
-                          empty_message='No validated rule-qualified correlations; co-location alone does not imply a relationship.')
-                st.markdown('**4 · Verified business context**')
-                show_rows('Approved CMDB mapping and service context',[
-                    {k:r.get(k) for k in ('ci_id','business_service','criticality','environment',
-                                         'role','support_group','internet_exposure')}
-                    for r in dossier['cmdb']],
-                    empty_message='No verified CMDB mapping for this asset; do not infer criticality.')
-                st.caption('Candidate Fix Group references: '+
-                           str(len(dossier['fix_group_refs']))+
-                           ' displayed. Prioritization is separate from scanner severity.')
-                with st.expander('Evidence provenance, additional status and safety notes'):
-                    st.json({'asset_uuid':dossier_id,'counts':counts,
-                             'fix_groups':dossier['fix_group_refs'],
-                             'identity':dossier['identity_note'],
-                             'reachability':dossier['reachability_note']})
+                with st.expander('Explain a work item · policy and linked CIS evidence',expanded=False):
+                    if priorities:
+                        selected_work=st.selectbox(
+                            'Explain a prioritized work item',
+                            [str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
+                             for x in priorities],key='asset360_work_item')
+                        chosen_item=priorities[[
+                            str(x['asset_rank'])+' · '+x['label']+' · '+x['fix_group_id']
+                            for x in priorities].index(selected_work)]
+                        st.markdown('**Decision explanation**')
+                        st.json({
+                            'asset_rank':chosen_item['asset_rank'],
+                            'contextual_score':chosen_item['score'],
+                            'priority':chosen_item['priority'],
+                            'policy':owner_queue['policy_id'],
+                            'source_severity':chosen_item['max_vendor_severity'],
+                            'source_vpr':chosen_item['max_vendor_vpr'],
+                            'rule_contributions':chosen_item['rule_contributions'],
+                            'candidate_group_quality':chosen_item['mapping_quality'],
+                            'sample_finding_ids':chosen_item['finding_ids'],
+                            'evidence_flags':chosen_item['evidence_flags'],
+                        })
+                        show_rows('Related failed CIS controls supporting this work item',
+                                  chosen_item['linked_cis_evidence'],
+                                  empty_message='No explicit related failed CIS controls for this work item.')
+                with st.expander('Detailed evidence · vulnerability, CIS, correlations and CMDB', expanded=False):
+                    ev_vuln,ev_cis,ev_corr,ev_context=st.tabs([
+                        'Vulnerabilities', 'CIS posture', 'Correlations', 'Business context'])
+                    with ev_vuln:
+                        st.caption('A bounded sample of vulnerability findings. The owner queue above evaluates every eligible finding.')
+                        show_rows('Scanner values and contextual assessment',dossier['vulnerabilities'],
+                                  empty_message='No vulnerabilities in the displayed sample.')
+                    with ev_cis:
+                        st.caption('WARNING and ERROR denote scan hygiene, not failed controls.')
+                        show_rows('CIS status breakdown',[
+                            x for x in dossier['status_counts'] if x['kind']=='compliance'],
+                            empty_message='No CIS evidence recorded for this asset.')
+                        show_rows('CIS control outcomes',dossier['cis'],
+                                  empty_message='No CIS checks in the displayed sample.')
+                    with ev_corr:
+                        st.caption('Explicit same-UUID, rule-qualified relationships; co-location alone is not corroboration.')
+                        show_rows('Related vulnerability/CIS evidence',dossier['correlated_cis_evidence'],
+                                  empty_message='No rule-qualified same-asset correlations.')
+                    with ev_context:
+                        show_rows('Verified business context',[{
+                            k:r.get(k) for k in ('ci_id','business_service','criticality',
+                                                 'environment','role','support_group','internet_exposure')}
+                            for r in dossier['cmdb']],
+                            empty_message='No verified CMDB mapping; business criticality remains unknown.')
+                        st.caption('Candidate Fix Group references: '+str(len(dossier['fix_group_refs']))+' shown.')
+                        with st.expander('Evidence provenance and raw references'):
+                            st.json({'asset_uuid':dossier_id,'counts':counts,
+                                     'fix_groups':dossier['fix_group_refs'],
+                                     'identity':dossier['identity_note'],
+                                     'reachability':dossier['reachability_note']})
         else:
             st.info('No matching asset. Load a synthetic demonstration source or search a different hostname.')
-        st.divider()
-        st.subheader('Evidence-backed candidate remediation groups')
-        st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
-        policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
-                           else ROOT/'policies/business-context.yaml')
-        groups=cached_ranked(DB,version,digest(policy),json.dumps(policy,sort_keys=True),100)
-        total_ties=0
-        with store.lock:
-            # COUNT groups at the maximum displayed score without materializing all groups in the browser.
-            # Rank computation remains lazy and cacheable; this count describes only the displayed top 100.
+        with st.expander('Portfolio Fix Groups · cross-asset remediation view', expanded=False):
+            st.subheader('Evidence-backed candidate remediation groups')
+            st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
+            policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
+                               else ROOT/'policies/business-context.yaml')
+            groups=cached_ranked(DB,version,digest(policy),json.dumps(policy,sort_keys=True),100)
+            total_ties=0
+            with store.lock:
+                # COUNT groups at the maximum displayed score without materializing all groups in the browser.
+                # Rank computation remains lazy and cacheable; this count describes only the displayed top 100.
+                if groups:
+                    from collections import Counter
+                    score_frequency=Counter(g['score'] for g in groups)
+                    total_ties=sum(n for n in score_frequency.values() if n>1)
+            st.caption(f'{total_ties} of {len(groups)} displayed Fix Groups share scores with another displayed group. '
+                       'Ties sort by compounded, critical, production and total assets, then finding count and stable ID.')
             if groups:
-                from collections import Counter
-                score_frequency=Counter(g['score'] for g in groups)
-                total_ties=sum(n for n in score_frequency.values() if n>1)
-        st.caption(f'{total_ties} of {len(groups)} displayed Fix Groups share scores with another displayed group. '
-                   'Ties sort by compounded, critical, production and total assets, then finding count and stable ID.')
-        if groups:
-            table=[{'rank':g['rank'],'label':g['label'],
-                    'tenable_severity':g.get('max_vendor_severity'),
-                    'tenable_vpr':g.get('max_vendor_vpr'),
-                    'contextual_priority':g['priority'],'score':g['score'],
-                    'assets':g['assets_count'],'production_assets':g['production_assets_count'],
-                    'compounded_assets':g['compounded_assets_count'],
-                    'why':', '.join(g['matched_rules']) or 'Vendor evidence only'} for g in groups]
-            def highlight_priority(value):
-                return ('color: #e05252; font-weight: bold' if value=='urgent' else
-                        'color: #cc8c28; font-weight: bold' if value=='high' else
-                        'color: #407eac' if value=='medium' else 'color: #299766')
-            import pandas as pd
-            st.dataframe(pd.DataFrame(table).style.map(highlight_priority,subset=['contextual_priority']),
-                         use_container_width=True,hide_index=True)
-            options={g['label']+' · '+g['fix_group_id']:g['fix_group_id'] for g in groups}
-            chosen=st.selectbox('Inspect fix group evidence',list(options),key='fix_group_pick')
-            group_id=options[chosen]
-            with store.lock:
-                evidence=evidence_for_group(store,group_id,limit=25)
-            show_rows('Supporting source evidence',evidence['evidence'])
-            with st.expander('Show raw evidence'):
-                st.json(evidence)
-        else:
-            st.warning('No findings available in this source. Choose an isolated demonstration source if needed.')
-            group_id=None
-
-        st.subheader('Asset investigation')
-        hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
-        scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
-                       key='asset_scope')
-        with store.lock:
-            candidates=asset_choices(store,
-                group_id=group_id if scope=='Current Fix Group' else None,
-                hostname_query=hostname_query,limit=100)
-        if candidates:
-            assets_by_label={
-                (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
-                 ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
-            asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
-                                     list(assets_by_label),key='selected_asset')
-            selected_id=assets_by_label[asset_label]
-            st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
-        else:
-            selected_id=None
-            st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
-        contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
-                                      key='contextual_asset')
-        if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
-            with store.lock:
-                st.session_state['asset_investigation']={
-                    'db':DB,'asset_id':selected_id,
-                    'data':get_asset_exposure(store,selected_id,limit=150,
-                            policy=policy if contextual_asset else None)}
-        investigation=st.session_state.get('asset_investigation')
-        if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
-            result=investigation['data']
-            if not result.get('asset'):
-                st.warning('Selected asset not found in the current database.')
-            else:
-                asset=result['asset']
-                st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
-                st.caption('Tenable UUID: '+str(asset.get('asset_id')))
-                evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
-                finding_rows=[]
-                for finding in result.get('findings',[]):
-                    e=evaluation.get(finding['finding_id'],{})
-                    finding_rows.append({
-                        'finding_id':finding['finding_id'], 'type':finding['kind'],
-                        'title':finding['title'],'status':finding['status'],
-                        'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
-                        'contextual_score':e.get('contextual_score'),
-                        'contextual_priority':e.get('contextual_priority'),
-                        'matched_rules':', '.join(e.get('matched_rules',[])),
-                        'evidence_flags':', '.join(e.get('evidence_flags',[]))})
-                show_rows('Findings: vendor vs contextual assessment',finding_rows)
-                show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
-                show_rows('Verified CMDB context',[
-                    {'business_service':x.get('business_service'),
-                     'criticality':x.get('criticality'),
-                     'support_group':x.get('support_group'),
-                     'environment':x.get('environment')} for x in result.get('cmdb',[])])
-                st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
+                table=[{'rank':g['rank'],'label':g['label'],
+                        'tenable_severity':g.get('max_vendor_severity'),
+                        'tenable_vpr':g.get('max_vendor_vpr'),
+                        'contextual_priority':g['priority'],'score':g['score'],
+                        'assets':g['assets_count'],'production_assets':g['production_assets_count'],
+                        'compounded_assets':g['compounded_assets_count'],
+                        'why':', '.join(g['matched_rules']) or 'Vendor evidence only'} for g in groups]
+                def highlight_priority(value):
+                    return ('color: #e05252; font-weight: bold' if value=='urgent' else
+                            'color: #cc8c28; font-weight: bold' if value=='high' else
+                            'color: #407eac' if value=='medium' else 'color: #299766')
+                import pandas as pd
+                st.dataframe(pd.DataFrame(table).style.map(highlight_priority,subset=['contextual_priority']),
+                             use_container_width=True,hide_index=True)
+                options={g['label']+' · '+g['fix_group_id']:g['fix_group_id'] for g in groups}
+                chosen=st.selectbox('Inspect fix group evidence',list(options),key='fix_group_pick')
+                group_id=options[chosen]
+                with store.lock:
+                    evidence=evidence_for_group(store,group_id,limit=25)
+                show_rows('Supporting source evidence',evidence['evidence'])
                 with st.expander('Show raw evidence'):
-                    st.json(result)
+                    st.json(evidence)
+            else:
+                st.warning('No findings available in this source. Choose an isolated demonstration source if needed.')
+                group_id=None
+
+
+            with st.expander('Advanced · legacy fix-group asset drilldown',expanded=False):
+                st.subheader('Asset investigation')
+                hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
+                scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
+                               key='asset_scope')
+                with store.lock:
+                    candidates=asset_choices(store,
+                        group_id=group_id if scope=='Current Fix Group' else None,
+                        hostname_query=hostname_query,limit=100)
+                if candidates:
+                    assets_by_label={
+                        (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
+                         ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
+                    asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
+                                             list(assets_by_label),key='selected_asset')
+                    selected_id=assets_by_label[asset_label]
+                    st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
+                else:
+                    selected_id=None
+                    st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
+                contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
+                                              key='contextual_asset')
+                if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
+                    with store.lock:
+                        st.session_state['asset_investigation']={
+                            'db':DB,'asset_id':selected_id,
+                            'data':get_asset_exposure(store,selected_id,limit=150,
+                                    policy=policy if contextual_asset else None)}
+                investigation=st.session_state.get('asset_investigation')
+                if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
+                    result=investigation['data']
+                    if not result.get('asset'):
+                        st.warning('Selected asset not found in the current database.')
+                    else:
+                        asset=result['asset']
+                        st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
+                        st.caption('Tenable UUID: '+str(asset.get('asset_id')))
+                        evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
+                        finding_rows=[]
+                        for finding in result.get('findings',[]):
+                            e=evaluation.get(finding['finding_id'],{})
+                            finding_rows.append({
+                                'finding_id':finding['finding_id'], 'type':finding['kind'],
+                                'title':finding['title'],'status':finding['status'],
+                                'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
+                                'contextual_score':e.get('contextual_score'),
+                                'contextual_priority':e.get('contextual_priority'),
+                                'matched_rules':', '.join(e.get('matched_rules',[])),
+                                'evidence_flags':', '.join(e.get('evidence_flags',[]))})
+                        show_rows('Findings: vendor vs contextual assessment',finding_rows)
+                        show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
+                        show_rows('Verified CMDB context',[
+                            {'business_service':x.get('business_service'),
+                             'criticality':x.get('criticality'),
+                             'support_group':x.get('support_group'),
+                             'environment':x.get('environment')} for x in result.get('cmdb',[])])
+                        st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
+                        with st.expander('Show raw evidence'):
+                            st.json(result)
     except Exception as exc:
         st.error('Unable to render fixes tab: ' + type(exc).__name__)
 
