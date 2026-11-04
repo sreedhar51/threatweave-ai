@@ -41,7 +41,7 @@ The contributor's local Gitleaks history scan reported **5 `generic-api-key` mat
 - **2** matches in historical OWASP documentation rows concerning credential scrubbing.
 - **3** matches in historical synthetic secret-scrubber test cases.
 - Current assessment: **likely documentation/synthetic false positives**, not confirmed real credentials. The full five-row inventory and evidence limits are in [Gitleaks findings review](GITLEAKS_FINDINGS_REVIEW.md).
-- **Do not label the repository secret-scan-clean yet.** Confirm the findings and obtain Tenable review guidance; any historical credentials separately disclosed outside Git still require rotation confirmation. No allowlist or history rewrite has been performed.
+- **Latest contributor-reported local scan:** 85 commits scanned, **0 unignored findings**, exit code **0**, using narrowly scoped reviewed fingerprints in `.gitleaksignore`. This does not imply independent Tenable scanning has completed; the original matches remain in Git history.
 
 ## GitHub integration / roadmap status
 
