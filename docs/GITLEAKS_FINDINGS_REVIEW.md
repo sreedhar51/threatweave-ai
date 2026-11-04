@@ -27,7 +27,7 @@ Multiple findings on one line can result from independently detected key-shaped 
 - The three test matches occur in a `raw_texts` list of intentionally fabricated key-like examples and their expected redacted outputs. The examples are shaped to trigger detection and validate defensive sanitization.
 - These contexts strongly support a **likely false-positive** classification. They do **not** establish that no credential exists elsewhere in Git history, nor independently verify the ownership, issuance or revocation status of any string.
 - Earlier repository documentation noted credentials visible in a separate screenshot. Confirmation that those particular credentials were rotated is a **separate operational check**; this finding inventory does not establish rotation.
-- No Gitleaks rule has been disabled, no allowlist added, and no Git history rewritten. Neither the test suite nor the existing CodeQL checks substitute for a full-history secret scan.
+- No Gitleaks rule has been disabled and no Git history rewritten. A follow-up PR adds **exact historical finding fingerprints only** in the root `.gitleaksignore`; this does not replace full-history scanning or independent assessment. Neither the test suite nor CodeQL substitutes for a secret scan.
 
 ## Current-branch fixture hygiene (November 4, 2026)
 
@@ -36,7 +36,28 @@ The remediation branch `fix/synthetic-key-fixture-hygiene` changes current files
 - `tests/test_owasp_guardrails.py` assembles three deliberate redaction-test inputs from string fragments at runtime rather than committing contiguous key-shaped test literals. Expected redaction behavior is unchanged.
 - `docs/OWASP_AGENT_BEST_PRACTICES.md` retains the LLM02 control description but uses clearer, generic language rather than writing provider-credential names in a long Markdown table cell.
 
-**History remains unchanged.** These updates do not remove the previously identified matches from historical commits `b06e465e` and `0f71cf4a`. A scan using `--log-opts="--all"` can continue to report the historical five findings. That is not evidence that the cleanup failed to change the current tree; it means Git preserves earlier versions by design. Do not claim the full-history screening is clean until Tenable has accepted an exception or an approved history-remediation procedure has been completed and verified. No automatic Gitleaks ignore or global rule exemption was introduced.
+**History remains unchanged.** These updates do not remove the previously identified matches from historical commits `b06e465e` and `0f71cf4a`. A scan using `--log-opts="--all"` can continue to report the historical five findings. That is not evidence that the cleanup failed to change the current tree; it means Git preserves earlier versions by design. Do not claim the full-history screening is clean until Tenable has accepted an exception or an approved history-remediation procedure has been completed and verified. The follow-up `.gitleaksignore` adds only four exact commit/path/rule/line fingerprints covering the five documented matches; it does **not** exempt files, directories, or rules.
+
+## Scoped ignore: four unique historical fingerprints
+
+A root [`.gitleaksignore`](../.gitleaksignore) file has been proposed for the exact historical finding identities. Gitleaks commonly identifies a finding with `<commit>:<file>:<rule>:<start-line>`. The five prior findings map to **four unique** fingerprint identities because two synthetic key-shaped fields were reported on the same test line.
+
+- Documentation: the LLM02 narrative row in commits `0f71cf4a` (line 58) and `b06e465e` (line 57).
+- Synthetic tests: commit `b06e465e`, lines 22 and 23, including both matches on line 23.
+- No file-wide allowlist, blanket `generic-api-key` exemption, or ignore of new findings.
+
+**Required verification:** These entries were assembled from the previously shared report's commit prefixes, paths, rule IDs and start lines; the original raw report's exact `Fingerprint` values were **not available in this editing environment**. Compare the root ignore entries with the exact locally generated Gitleaks report fingerprints, correcting any mismatch, then rerun the full-history scan. Even after it exits zero with known exceptions, describe that outcome as **"no unignored findings"**, not "history contains no matches." Independent Tenable screening may apply other rules or ignore handling.
+
+Safe PowerShell verification (do not print `Match` or `Secret` values):
+
+~~~powershell
+$report = "$env:TEMP\threatweave-gitleaks-report.json"
+$data = Get-Content $report -Raw | ConvertFrom-Json
+$data | Select-Object RuleID, File, Commit, StartLine, Fingerprint | Format-Table -AutoSize
+Get-Content .gitleaksignore | Where-Object { $_ -match '^[0-9a-f]{40}:' }
+gitleaks git --log-opts="--all" --redact --report-format json --report-path "$env:TEMP\threatweave-gitleaks-after-ignore.json" .
+$LASTEXITCODE
+~~~
 
 ## Submission disposition
 
