@@ -199,11 +199,33 @@ The repository ships `.mcp.json`, which registers the MCP server, and
 `.claude/agents/threatweave.md`, a subagent that can use only the six ThreatWeave
 tools. It cannot read files, run commands, or browse the web.
 
+Start Claude Code from the repository root in the same shell where you activated
+ThreatWeave's virtual environment. `.mcp.json` launches bare `python`, so Claude Code
+must inherit the environment's PATH to find both ThreatWeave and the MCP SDK.
+Activate it again in each new shell before running `claude`.
+
+**macOS / Linux** (after creating `.venv` in Setup above)
+
 ```bash
+source .venv/bin/activate
 python -m pip install -e '.[mcp]'
 threatweave --db runtime/demo.db demo     # the MCP server reads this database
-claude                                     # open this repository as the project
+claude                                 # launch from this activated shell
 ```
+
+**Windows PowerShell** (after creating `.venv` in Setup above)
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[mcp]"
+python -m threatweave.cli --db runtime/demo.db demo
+claude                                 # launch from this activated shell
+```
+
+If you launch a client outside the activated shell, configure its MCP `command`
+with the absolute path to this environment's Python executable (`.venv/bin/python`
+on macOS/Linux or `.venv\Scripts\python.exe` on Windows). Installing with an
+explicit Python path alone does not update the PATH inherited by Claude Code.
 
 Then ask: *"Use the threatweave agent: which fix group should we investigate first,
 and why did it move?"*
