@@ -45,6 +45,8 @@ def main(argv=None):
     sub.add_argument('--out',default='runtime/receipts/receipt.json')
     sub=commands.add_parser('compare',help='Compare two saved Decision Receipts')
     sub.add_argument('before');sub.add_argument('after')
+    sub=commands.add_parser('check-owasp',help='Audit system against OWASP Top 10 for LLM and Agentic AI applications')
+    sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'))
     args=parser.parse_args(argv)
     if args.command=='demo' and args.staged:
         from .staged import run_staged_demo
@@ -57,6 +59,20 @@ def main(argv=None):
         finally:store.close()
     elif args.command=='compare':
         result=compare_receipts(json.loads(Path(args.before).read_text()),json.loads(Path(args.after).read_text()))
+    elif args.command=='check-owasp':
+        if not Path(args.db).is_file():
+            import sys
+            error_payload = {'error': f"Database file does not exist: {args.db}"}
+            print(json.dumps(error_payload, indent=2), file=sys.stderr)
+            return 1
+        from .owasp_guardrails import audit_owasp_compliance
+        store = Store(args.db)
+        try:
+            result = audit_owasp_compliance(store, args.policy)
+        finally:
+            store.close()
+        print(json.dumps(result, indent=2))
+        return 1 if result.get('verdict') != 'PASS' else 0
     else:
         store=Store(args.db)
         try:

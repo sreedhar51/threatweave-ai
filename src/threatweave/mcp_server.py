@@ -4,7 +4,22 @@ Uses MCP Python SDK v2; v1 FastMCP fallback is provided for compatibility.
 No tools modify Tenable, CMDB, security configurations, or source files.
 """
 import os
+import json
 from . import tools as core
+from .owasp_guardrails import scrub_data
+
+def _bounded_mcp_result(result: dict, max_chars: int = 16000) -> dict:
+    """Scrub secrets and enforce size limit on MCP tool results."""
+    safe = scrub_data(result)
+    raw = json.dumps(safe, default=str)
+    if len(raw) > max_chars:
+        return {
+            "status": "TRUNCATED",
+            "evidence_complete": False,
+            "original_json_characters": len(raw),
+            "message": "Tool result exceeds evidence budget. Narrow the request.",
+        }
+    return safe
 
 try:
     from mcp.server import MCPServer
@@ -26,27 +41,27 @@ if MCPServer is not None:
     @mcp.tool()
     def get_security_overview() -> dict:
         """Overview of imported security assets, findings, compliance and context."""
-        return core.overview(db())
+        return _bounded_mcp_result(core.overview(db()))
 
     @mcp.tool()
     def list_fix_groups(limit: int=15) -> dict:
         """Return highest-priority candidate fix groups with source evidence references."""
-        return core.list_fix_groups(db(),policy_path(),limit)
+        return _bounded_mcp_result(core.list_fix_groups(db(),policy_path(),limit))
 
     @mcp.tool()
     def get_asset_exposure(asset_uuid: str) -> dict:
         """Inspect same-asset vulnerabilities, CIS failures and CMDB context; no network-path inference."""
-        return core.retrieve_asset(db(),asset_uuid)
+        return _bounded_mcp_result(core.retrieve_asset(db(),asset_uuid))
 
     @mcp.tool()
     def get_group_evidence(fix_group_id: str, limit: int=15) -> dict:
         """Fetch bounded source evidence for one candidate remediation group."""
-        return core.retrieve_group_evidence(db(),fix_group_id,limit)
+        return _bounded_mcp_result(core.retrieve_group_evidence(db(),fix_group_id,limit))
 
     @mcp.tool()
     def evaluate_policy_dry_run(policy: dict) -> dict:
         """Validate and evaluate a proposed policy without changing an active policy or Tenable data."""
-        return core.preview_policy(db(),policy,limit=15)
+        return _bounded_mcp_result(core.preview_policy(db(),policy,limit=15))
 
     @mcp.tool()
     def compare_decision_receipts(before_path: str, after_path: str) -> dict:
@@ -59,7 +74,7 @@ if MCPServer is not None:
             if root!=resolved and root not in resolved.parents:
                 raise ValueError('Receipt paths must be inside configured receipts directory')
             return str(resolved)
-        return core.compare_receipt_files(constrain(before_path),constrain(after_path))
+        return _bounded_mcp_result(core.compare_receipt_files(constrain(before_path),constrain(after_path)))
 else:
     mcp=None
 
