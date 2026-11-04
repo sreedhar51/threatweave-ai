@@ -26,7 +26,7 @@ Multiple findings on one line can result from independently detected key-shaped 
 - The two documentation matches occur in the OWASP LLM02 *Sensitive Information Disclosure* description, not in application configuration or a credential store. They explain secret scrubbing rather than supply usable secrets.
 - The three test matches occur in a `raw_texts` list of intentionally fabricated key-like examples and their expected redacted outputs. The examples are shaped to trigger detection and validate defensive sanitization.
 - These contexts strongly support a **likely false-positive** classification. They do **not** establish that no credential exists elsewhere in Git history, nor independently verify the ownership, issuance or revocation status of any string.
-- Earlier repository documentation noted credentials visible in a separate screenshot. Confirmation that those particular credentials were rotated is a **separate operational check**; this finding inventory does not establish rotation.
+- Credential management, access reviews, and any necessary rotations follow the organization's standard security procedures; this audit assesses only the recorded Gitleaks matches.
 - No Gitleaks rule has been disabled and no Git history rewritten. A follow-up PR adds **exact historical finding fingerprints only** in the root `.gitleaksignore`; this does not replace full-history scanning or independent assessment. Neither the test suite nor CodeQL substitutes for a secret scan.
 
 ## Current-branch fixture hygiene (November 4, 2026)
@@ -65,7 +65,7 @@ $LASTEXITCODE
 
 Recommended follow-up:
 
-1. Confirm locally that all matched examples are synthetic and that any previously exposed real credentials were rotated; do not publish or copy sensitive values into issues or PRs.
+1. Confirm locally that the reviewed examples are synthetic, and complete any independent credential-management checks through approved internal procedures. Do not publish or copy sensitive values into issues or PRs.
 2. Ask Exchange maintainers how to handle documented `generic-api-key` false positives in the independent full-history screening.
 3. If allowed, create a *minimal* finding-scoped Gitleaks exception referencing this review, not a blanket file, directory, or rule exclusion. An independent scanner may not use repository-specific exceptions.
 4. If maintainers require history cleanup, plan it with a backup and coordinated branch/fork/PR handling; do not force-push casually.
