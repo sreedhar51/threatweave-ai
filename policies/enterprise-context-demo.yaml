@@ -24,7 +24,7 @@ rules:
       severity: high
       internet_exposure: confirmed
     then:
-      score_add: 14
+      score_add: 10
       add_evidence_flag: external_exposure_needs_validation
       require_review: true
 
@@ -36,7 +36,7 @@ rules:
       criticality: critical
       business_tag: payments
     then:
-      score_add: 22
+      score_add: 12
       priority_floor: high
 
   - id: ENT-IDENTITY-SERVICE
@@ -47,7 +47,7 @@ rules:
       criticality: critical
       role: identity_server
     then:
-      score_add: 18
+      score_add: 12
       add_evidence_flag: identity_service_dependency_review
 
   - id: ENT-CRITICAL-PRODUCTION
@@ -57,7 +57,7 @@ rules:
       environment: production
       criticality: critical
     then:
-      score_add: 12
+      score_add: 8
 
   - id: ENT-HIGH-PRODUCTION
     name: Verified high-criticality production system
@@ -66,7 +66,7 @@ rules:
       environment: production
       criticality: high
     then:
-      score_add: 8
+      score_add: 6
 
   - id: ENT-COMPOUNDED
     name: Relevant CIS failure corroborates vulnerability on same asset
@@ -74,7 +74,7 @@ rules:
       kind: vulnerability
       compounded_exposure: true
     then:
-      score_add: 14
+      score_add: 10
       add_evidence_flag: same_asset_cis_correlated_only
 
   - id: ENT-IDENTITY-COMPOUNDED
@@ -84,7 +84,7 @@ rules:
       role: identity_server
       compounded_exposure: true
     then:
-      score_add: 9
+      score_add: 6
       require_review: true
 
   - id: ENT-REGULATED-CONTEXT
@@ -94,7 +94,7 @@ rules:
       criticality: critical
       business_tag: regulated
     then:
-      score_add: 6
+      score_add: 4
       require_review: true
 
   - id: ENT-BACKUP-RECOVERY
@@ -104,7 +104,7 @@ rules:
       criticality: high
       business_tag: backup
     then:
-      score_add: 10
+      score_add: 8
       add_evidence_flag: recovery_dependency_review
 
   - id: ENT-PRIVILEGED-ENDPOINT
@@ -114,7 +114,7 @@ rules:
       criticality: high
       role: privileged_workstation
     then:
-      score_add: 8
+      score_add: 6
       require_review: true
 
   - id: ENT-UNKNOWN-EXPOSURE
