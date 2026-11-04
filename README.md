@@ -142,13 +142,14 @@ the code checks everything it returns:
 | Layer | Command | What Claude does | What the code enforces |
 |---|---|---|---|
 | **Decide** | `brief` | Recommends the next human action for each top fix group | Fixed output schema; every cited finding ID must be in that group's evidence; `INVESTIGATE_NOW` and `SCHEDULE` must cite evidence; ranks and scores are copied from the receipt, never changed |
-| **Correlate** | `propose-correlations` | Judges whether an unlinked same-asset pair is a real security relationship | Only pairs found by the engine can be proposed; a link must cite one vulnerability and one compliance finding; drafts pass the engine's rule validation; the rules file is never written |
+| **Correlate** | `propose-correlations` | Judges whether an unlinked same-asset pair is a real security relationship | Only pairs found by the engine can be proposed; pairs whose evidence looks like prompt injection are skipped without calling Claude; a link must cite one vulnerability and one compliance finding; drafts pass the engine's rule validation; the rules file is never written |
 | **Investigate** | `ask` | Answers questions using four read-only evidence tools | Strict tool schemas, input validation, 5-turn and 5-tool budgets, untrusted-evidence wrapping |
 | **Policy** | `draft-rule` | Turns a plain-English request into a policy rule | Fixed output schema plus the policy validator; always `approved: false` |
 
 All four use `claude-opus-5-5` by default, with an automatic fallback model when
-Claude declines a request. Any evidence that looks like a prompt-injection attempt is
-flagged in the output for the reviewer.
+Claude declines a request. Evidence that looks like a prompt-injection attempt is
+flagged in the output for the reviewer. For correlation proposals, which could become
+permanent rules, such pairings are not sent to Claude at all.
 
 ## Use it with Claude
 
@@ -170,7 +171,9 @@ threatweave draft-rule "Raise priority for internet-exposed production assets"
   `rejected` with the reason, `refused`, `truncated`, or `invalid_json`) and the
   Decision Receipt it is bound to.
 - `propose-correlations` prints Claude's decision for each unlinked pairing and a
-  `draft_rules_yaml` block to review. On the synthetic demo it reviews one pairing.
+  `draft_rules_yaml` block to review. A pairing whose evidence looks like prompt
+  injection is reported as `skipped_injection`, with the finding IDs to review by hand.
+  On the synthetic demo it reviews one pairing.
 - `ask` runs a bounded tool-use loop and reports how it ended (`completed`, `refused`,
   `truncated`, or `budget_exhausted`) plus any warnings.
 - `draft-rule` returns a schema-checked policy rule with `approved: false`.

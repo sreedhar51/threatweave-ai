@@ -5,7 +5,9 @@ vetted `software_family` to `control_id` rule says they are related. This layer
 finds same-asset pairs that no rule links yet, asks Claude whether each pairing
 is a meaningful security relationship, and returns draft rules for a human to
 review. It never edits the rules file, never re-runs correlation, and never
-changes a score.
+changes a score. A candidate whose evidence matches the prompt-injection
+heuristics is skipped without calling Claude, because an approved draft rule
+would change future rankings; a human reviews those pairings by hand.
 """
 import json
 import yaml
@@ -148,9 +150,17 @@ def propose_correlations(db_path, rules_path, limit=5, model=None, effort=None):
         samples = {'vulnerabilities': candidate['vulnerability_samples'],
                    'failed_controls': candidate['compliance_samples']}
         samples_json, flagged = untrusted_evidence(samples)
+        entry = {'candidate': summary, 'injection_flagged': flagged}
+        if flagged:
+            entry.update(status='skipped_injection', reason=(
+                'Sample evidence contains text resembling prompt-injection instructions, so Claude '
+                'was not asked about this pairing. Review these findings by hand.'),
+                finding_ids_to_review=[s['finding_id'] for s in
+                                       candidate['vulnerability_samples'] + candidate['compliance_samples']])
+            proposals.append(entry)
+            continue
         prompt = PROMPT.format(candidate=json.dumps(summary, sort_keys=True), samples=samples_json)
         outcome, parsed = structured_call(client, settings, prompt, PROPOSAL_SCHEMA)
-        entry = {'candidate': summary, 'injection_flagged': flagged}
         entry.update({k: v for k, v in outcome.items() if k != 'status'})
         if outcome['status'] != 'ok':
             entry['status'] = outcome['status']
