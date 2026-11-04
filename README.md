@@ -119,19 +119,25 @@ Every command prints JSON. Receipts are written to `runtime/receipts/`.
 streamlit run dashboard/app.py
 ```
 
-Open http://localhost:8501. The sidebar switches between three isolated data sources,
-so demo data can never be written into a tenant database:
+Open http://localhost:8501. The sidebar offers four isolated data sources:
 
 | Mode | Data |
 |---|---|
 | **Tenant** | Your imported evidence, from the database in `THREATWEAVE_DB` |
 | **Synthetic demo** | The bundled demonstration in `runtime/demo.db` |
+| **Enterprise demo** | Five fictional assets with vulnerabilities, CIS failures and verified business context; load using the sidebar button |
 | **Staged demo** | Vulnerabilities, then CIS evidence, then verified synthetic CMDB context |
 
-The **Fix Groups & Assets**, **Policy & Investigation**, and **Decision Replay** tabs
-show candidate fixes with source evidence and vendor scores, contextual policy
-decisions with versioned local policy approval, ingestion history, and before/after
-rank changes.
+The **Asset 360 & Fix Groups** tab starts with a unified, UUID-scoped
+asset dossier (vulnerabilities, CIS outcomes, matched controls, business context
+and contextual scores). Search by hostname but **never merge by hostname or IP**.
+It then shows the cross-asset candidate Fix Group queue.
+**Policy & Investigation** and **Decision Replay** display policy drafts,
+source evidence and reproducible decision changes. See the
+[Asset 360 demo walkthrough](docs/ASSET_360_DEMO.md).
+
+The fictional Enterprise demo is written only to its isolated local database,
+never to an authorized tenant dataset.
 
 ## How Claude fits
 
