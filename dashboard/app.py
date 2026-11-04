@@ -16,7 +16,7 @@ from threatweave.correlate import correlate,get_asset_exposure
 from threatweave.policy import load_policy,validate_policy
 from threatweave.engine import create_receipt,compare_receipts,rank_groups,evidence_for_group
 from threatweave.coverage import evidence_coverage
-from threatweave.data_sources import source_paths, load_synthetic_isolated
+from threatweave.data_sources import source_paths, load_synthetic_isolated, load_enterprise_synthetic_isolated
 from threatweave.utils import digest
 from threatweave.ui_workflows import (asset_choices, asset_360, rule_diff,
     add_drafted_rule_to_yaml, save_approved_policy, rank_replay,
@@ -121,11 +121,13 @@ st.caption('Evidence-backed exposure correlation · Organizational policy · Dec
 
 with st.sidebar:
     st.header('DataBridge')
-    source=st.selectbox('Data source',['Tenant','Synthetic demo','Staged demo'],key='data_source')
+    source=st.selectbox('Data source',['Tenant','Synthetic demo','Enterprise demo','Staged demo'],key='data_source')
     if source=='Tenant':
         path=TENANT_DB
     elif source=='Synthetic demo':
         path=DEMO_DB
+    elif source=='Enterprise demo':
+        path=DATA_PATHS['Enterprise demo'] if DATA_PATHS else (ROOT/'runtime/enterprise-demo.db').resolve()
     else:
         stage=st.selectbox('Stage',['Stage 1 · Vulnerabilities','Stage 2 · CIS','Stage 3 · CMDB'],index=2,key='selected_stage')
         stage_names=['stage1_vulnerabilities','stage2_plus_cis','stage3_plus_cmdb']
@@ -143,10 +145,17 @@ with st.sidebar:
         invalidate_caches()
         st.success('Isolated synthetic fixtures imported into runtime/demo.db')
         st.rerun()
+    if st.button('Load enterprise demo (five fictional assets)',use_container_width=True,
+                 disabled=source!='Enterprise demo',key='load_enterprise_demo'):
+        release_stores()
+        load_enterprise_synthetic_isolated(ROOT,TENANT_DB)
+        invalidate_caches()
+        st.success('Fictional enterprise dataset imported into an isolated local database')
+        st.rerun()
     record_type=st.selectbox('Import record type',['asset','vulnerability','compliance','cmdb'],key='import_type')
     provider=st.selectbox('Evidence provider',['tenable','servicenow-export','generic-export','synthetic'],key='import_provider')
     f=st.file_uploader('Upload CSV, JSON, or JSONL',type=['csv','json','jsonl','ndjson'],key='import_file')
-    if st.button('Import uploaded data',disabled=f is None or source=='Staged demo',key='import_uploaded'):
+    if st.button('Import uploaded data',disabled=f is None or source in ('Staged demo','Enterprise demo'),key='import_uploaded'):
         with tempfile.TemporaryDirectory() as td:
             suffix=Path(f.name).suffix
             uploaded=Path(td)/('input'+suffix)
@@ -160,7 +169,7 @@ with st.sidebar:
                     st.json(result)
             except Exception as exc:
                 st.error(f'Import failed: {type(exc).__name__}')
-    if st.button('Recompute CIS correlations',disabled=source=='Staged demo',key='recompute_correlations'):
+    if st.button('Recompute CIS correlations',disabled=source in ('Staged demo','Enterprise demo'),key='recompute_correlations'):
         try:
             with store.lock:
                 correlation_report=correlate(store,ROOT/'policies/correlation-rules.yaml')
@@ -229,7 +238,8 @@ with tab_fixes:
     try:
         st.subheader('Asset 360 · unified vulnerability, CIS and business evidence')
         st.caption('Start with a host, not a fix: one authoritative Tenable asset UUID connects all stored scanner findings, same-asset CIS checks, explicit correlations and verified CMDB context. Hostnames are search labels, never merge keys.')
-        dossier_policy=load_policy(ROOT/'policies/business-context.yaml')
+        dossier_policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
+                                  else ROOT/'policies/business-context.yaml')
         dossier_search=st.text_input('Search assets by hostname (not IP)',key='asset360_search')
         with store.lock:
             dossier_choices=asset_choices(store,hostname_query=dossier_search,limit=100)
@@ -290,7 +300,8 @@ with tab_fixes:
         st.divider()
         st.subheader('Evidence-backed candidate remediation groups')
         st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
-        policy=load_policy(ROOT/'policies/business-context.yaml')
+        policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
+                           else ROOT/'policies/business-context.yaml')
         groups=cached_ranked(DB,version,digest(policy),json.dumps(policy,sort_keys=True),100)
         total_ties=0
         with store.lock:
@@ -393,7 +404,8 @@ with tab_fixes:
 with tab_policy:
     try:
         st.subheader('Human-readable contextual policy')
-        active_policy=load_policy(ROOT/'policies/business-context.yaml')
+        active_policy=load_policy(ROOT/'policies/enterprise-context-demo.yaml' if source=='Enterprise demo'
+                                  else ROOT/'policies/business-context.yaml')
         if 'pending_draft_yaml' in st.session_state:
             st.session_state['policy_editor_yaml']=st.session_state.pop('pending_draft_yaml')
         if 'policy_editor_yaml' not in st.session_state:
