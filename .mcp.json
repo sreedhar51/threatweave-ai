@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "threatweave": {
+      "command": "python",
+      "args": ["-m", "threatweave.mcp_server"],
+      "env": {
+        "THREATWEAVE_DB": "runtime/demo.db",
+        "THREATWEAVE_POLICY": "policies/business-context.yaml",
+        "THREATWEAVE_RECEIPTS": "runtime/receipts"
+      }
+    }
+  }
+}

@@ -385,7 +385,8 @@ with tab_policy:
                     output=draft_rule(request,candidate or active_policy)
                     st.session_state['claude_rule_draft']=output
                 except Exception as exc:
-                    st.error('Draft unavailable: '+type(exc).__name__)
+                    from threatweave.agent import ClaudeUnavailable
+                    st.error('Draft unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
             proposed=st.session_state.get('claude_rule_draft')
             if proposed:
                 show_rows('Draft rule — not approved',[proposed['draft_rule']])
@@ -407,10 +408,14 @@ with tab_policy:
                         value='Which fixes changed priority because of CIS evidence?',key='claude_question')
             if st.button('Ask ThreatWeave Agent',key='ask_agent'):
                 try:
-                    from threatweave.agent import investigate
-                    st.write(investigate(question,DB,str(ROOT/'policies/business-context.yaml')))
+                    from threatweave.agent import run_investigation
+                    record=run_investigation(question,DB,str(ROOT/'policies/business-context.yaml'))
+                    for warning in record.get('warnings',[]):
+                        st.warning(warning)
+                    st.write(record['answer'])
                 except Exception as exc:
-                    st.error('Agent unavailable: '+type(exc).__name__)
+                    from threatweave.agent import ClaudeUnavailable
+                    st.error('Agent unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
     except Exception as exc:
         st.error('Unable to render policy tab: ' + type(exc).__name__)
 

@@ -67,7 +67,7 @@ Confirm contest eligibility and deadline, validate authorized tenant export, run
 
 ## Authorized Partner Lab verification reported from Windows laptop
 
-After the initial build-status checkpoints, the authorized test-lab operator reported successful read-only Tenable VM authentication and ingestion of 1,394 asset records, 18,974 vulnerability records, and 4,483 compliance records (zero ingestion rejections); 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt (`DR-558889ccdbeb9ddb`) reproduced byte-for-byte after excluding the generation timestamp. Python 3.13 Windows tests: 46 passed on the merged baseline. These were **user-reported laptop test outputs**, not independently authenticated from the ChatGPT execution environment. Correlation-rule quality, verified CMDB mappings, UI AppTest, and production throughput remain unverified.
+After the initial build-status checkpoints, the authorized test-lab operator reported successful read-only Tenable VM authentication and ingestion of 1,394 asset records, 18,974 vulnerability records, and 4,483 compliance records (zero ingestion rejections); 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt (`DR-558889ccdbeb9ddb`) reproduced byte-for-byte after excluding the generation timestamp. Python 3.13 Windows tests: 46 passed on the merged baseline. These were **user-reported laptop test outputs**, not independently reproduced from the build environment. Correlation-rule quality, verified CMDB mappings, UI AppTest, and production throughput remain unverified.
 
 ## UI and performance Part A checkpoint (November 3, 2026)
 
