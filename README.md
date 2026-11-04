@@ -8,6 +8,28 @@
 
 ThreatWeave correlates authorized Tenable vulnerability findings with relevant failed CIS host-audit checks on the **same verified asset**, optionally enriches that asset with ServiceNow CMDB-export business context, applies a human-readable organizational policy, and produces reproducible Decision Receipts that explain priority changes. The application **does not** infer inter-host connectivity or claim validated attack paths from synthetic IP addresses.
 
+## At a glance
+
+| | |
+| --- | --- |
+| **Primary workflow** | Collect → correlate → prioritize → investigate → replay |
+| **Data sources** | Tenable VM exports, Nessus files, CSV/JSON/JSONL, reviewed CMDB exports |
+| **Decision engine** | Deterministic YAML policy and qualified same-asset CIS correlations |
+| **Interfaces** | Streamlit dashboard, CLI, optional Claude integration and read-only MCP |
+| **Data storage** | Local SQLite; isolated tenant, synthetic and staged demonstrations |
+| **Safety** | Human-reviewed recommendations; no automated patches, scans or vendor write-back |
+
+## Architecture
+
+| Component | Responsibility |
+| --- | --- |
+| **Ingestion and evidence store** | Normalize authorized findings, retain provenance and preserve Tenable asset identity |
+| **Correlation and policy engine** | Qualify relevant vulnerability/CIS relationships and apply transparent organizational priorities |
+| **Decision Receipts and Replay** | Capture source fingerprints, rank candidates and explain what changed between decisions |
+| **Analyst interfaces** | Explore Fix Groups, investigate assets, review policy drafts and compare decisions |
+
+See [architecture details](docs/ARCHITECTURE.md).
+
 ## Setup and How to Run
 
 ### Prerequisites
@@ -138,7 +160,6 @@ python -m threatweave.mcp_server
 ~~~
 
 Set `THREATWEAVE_DB` and `THREATWEAVE_POLICY` for the MCP client's local environment. Its tools provide read-only security overview, Fix Groups, asset evidence, dry-run policy evaluation and receipt comparison. Claude integration requires an independently configured `ANTHROPIC_API_KEY`; policies are not activated without human approval. See [agent guidance](AGENTS.md).
-
 
 ## Why this agent differs from a vulnerability dashboard
 
