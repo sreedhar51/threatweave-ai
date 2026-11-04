@@ -5,26 +5,29 @@ FAIL_STATES={'FAIL','FAILED','NON_COMPLIANT'}
 ACTIVE_STATES={'OPEN','ACTIVE','REOPENED','NEW'}
 
 
+def normalize_rule(rule):
+    """Validate one correlation rule; return (rule, control_ids, title_matcher)."""
+    if not isinstance(rule,dict):
+        raise ValueError('Correlation rules must be objects')
+    raw_ids=rule.get('control_id')
+    ids=raw_ids if isinstance(raw_ids,list) else ([raw_ids] if raw_ids is not None else [])
+    title=rule.get('control_title_contains')
+    if not all(isinstance(rule.get(k),str) and rule[k].strip() for k in ('id','software_family','rationale')):
+        raise ValueError('Correlation rules require id, software_family and rationale')
+    if not ids and not title:
+        raise ValueError('Correlation rule requires control_id and/or control_title_contains')
+    if any(not isinstance(value,str) or not value.strip() for value in ids):
+        raise ValueError('Correlation control IDs must be nonempty strings')
+    if title is not None and (not isinstance(title,str) or not title.strip()):
+        raise ValueError('Correlation title matcher must be nonempty text')
+    return rule,ids,title
+
+
 def correlate(store, rules_path):
     spec=read_yaml(rules_path) or {}
     rules=spec.get('rules') or []
     # Validate every rule before clearing the previously established links.
-    normalized=[]
-    for rule in rules:
-        if not isinstance(rule,dict):
-            raise ValueError('Correlation rules must be objects')
-        raw_ids=rule.get('control_id')
-        ids=raw_ids if isinstance(raw_ids,list) else ([raw_ids] if raw_ids is not None else [])
-        title=rule.get('control_title_contains')
-        if not all(isinstance(rule.get(k),str) and rule[k].strip() for k in ('id','software_family','rationale')):
-            raise ValueError('Correlation rules require id, software_family and rationale')
-        if not ids and not title:
-            raise ValueError('Correlation rule requires control_id and/or control_title_contains')
-        if any(not isinstance(value,str) or not value.strip() for value in ids):
-            raise ValueError('Correlation control IDs must be nonempty strings')
-        if title is not None and (not isinstance(title,str) or not title.strip()):
-            raise ValueError('Correlation title matcher must be nonempty text')
-        normalized.append((rule,ids,title))
+    normalized=[normalize_rule(rule) for rule in rules]
 
     store.db.execute('DELETE FROM correlations')
     created=0
