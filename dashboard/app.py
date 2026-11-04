@@ -562,8 +562,8 @@ with tab_policy:
                         'confidence':b.get('brief',{}).get('confidence',''),
                         'summary':b.get('brief',{}).get('summary',b.get('reason','')),
                         'injection_flagged':b['injection_flagged']} for b in output['briefs']])
-                    with st.expander('Show full briefs'):
-                        st.json(output)
+                    st.caption('Full advisory brief details')
+                    st.json(output)
                 except Exception as exc:
                     from threatweave.agent import ClaudeUnavailable
                     st.error('Briefs unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
