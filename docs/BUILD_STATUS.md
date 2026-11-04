@@ -1,6 +1,6 @@
 # ThreatWeave AI — implementation and verification status
 
-Updated: November 3, 2026. Work-in-progress review branch `review/steps-1-5-evidence-foundations` (not merged to main).
+Updated: November 3, 2026. Baseline PR #1 has been merged into `main`; new UI/performance Part A work is on branch `feat/swarm-ui-evidence-performance`. Historical verification notes below describe earlier checkpoints.
 
 ## Verified locally
 
@@ -64,6 +64,10 @@ Confirm contest eligibility and deadline, validate authorized tenant export, run
 - Added minimal `CLAUDE.md` / `AGENTS.md`, a SWARM-readiness checklist and CI repeatability check. These are not Exchange Inspector vetting.
 - Oversized Claude tool responses now return valid structured `TRUNCATED` JSON instead of invalid fragments. No new scorer, vendor writes or cross-host inferences.
 - Performance was checked synthetically at 5,000 generated assets per stage. No certified live tenant throughput, customer outcomes, real-world time-saved measurement or Exchange approval claim.
+
+## Authorized Partner Lab verification reported from Windows laptop
+
+After the initial build-status checkpoints, the authorized test-lab operator reported successful read-only Tenable VM authentication and ingestion of 1,394 asset records, 18,974 vulnerability records, and 4,483 compliance records (zero ingestion rejections); 2,863 candidate same-asset correlations; and a 5,909-group Decision Receipt (`DR-558889ccdbeb9ddb`) reproduced byte-for-byte after excluding the generation timestamp. Python 3.13 Windows tests: 46 passed on the merged baseline. These were **user-reported laptop test outputs**, not independently authenticated from the ChatGPT execution environment. Correlation-rule quality, verified CMDB mappings, UI AppTest, and production throughput remain unverified.
 
 ## UI and performance Part A checkpoint (November 3, 2026)
 
