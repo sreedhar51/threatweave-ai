@@ -416,6 +416,45 @@ with tab_policy:
                 except Exception as exc:
                     from threatweave.agent import ClaudeUnavailable
                     st.error('Agent unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
+        with st.expander('Optional: Claude decision briefs (advisory)'):
+            st.caption('Claude recommends the next human action for the top fix groups, citing finding IDs. '
+                       'Ranks and scores stay exactly as the engine computed them.')
+            brief_count=st.slider('Fix groups to brief',1,5,3,key='claude_brief_count')
+            if st.button('Generate decision briefs',key='claude_briefs'):
+                try:
+                    from threatweave.briefs import generate_briefs
+                    output=generate_briefs(DB,str(ROOT/'policies/business-context.yaml'),limit=brief_count)
+                    st.caption('Bound to Decision Receipt '+output['receipt_id'])
+                    show_rows('Decision briefs — advisory',[{
+                        'rank':b['rank'],'fix_group':b['label'],'priority':b['priority'],'status':b['status'],
+                        'recommendation':b.get('brief',{}).get('recommendation',''),
+                        'confidence':b.get('brief',{}).get('confidence',''),
+                        'summary':b.get('brief',{}).get('summary',b.get('reason','')),
+                        'injection_flagged':b['injection_flagged']} for b in output['briefs']])
+                    with st.expander('Show full briefs'):
+                        st.json(output)
+                except Exception as exc:
+                    from threatweave.agent import ClaudeUnavailable
+                    st.error('Briefs unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
+        with st.expander('Optional: Claude correlation proposals (drafts only)'):
+            st.caption('Claude reviews same-asset vulnerability and CIS-failure pairs that no rule links yet. '
+                       'Proposed rules are never applied; add approved ones to the rules file yourself.')
+            if st.button('Review unlinked pairings',key='claude_correlation_proposals'):
+                try:
+                    from threatweave.correlation_proposals import propose_correlations
+                    output=propose_correlations(DB,str(ROOT/'policies/correlation-rules.yaml'))
+                    show_rows('Correlation proposals — not applied',[{
+                        'software_family':p['candidate']['software_family'],
+                        'control':p['candidate']['control_id'] or p['candidate']['control_title'],
+                        'pairs':p['candidate']['pair_count'],'status':p['status'],
+                        'decision':p.get('decision',''),'confidence':p.get('confidence',''),
+                        'rationale':p.get('rationale',p.get('reason',''))} for p in output['proposals']],
+                        empty_message='No unlinked same-asset pairings found.')
+                    if output['draft_rules_yaml']:
+                        st.code(output['draft_rules_yaml'],language='yaml')
+                except Exception as exc:
+                    from threatweave.agent import ClaudeUnavailable
+                    st.error('Proposals unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
     except Exception as exc:
         st.error('Unable to render policy tab: ' + type(exc).__name__)
 

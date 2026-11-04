@@ -49,6 +49,18 @@ def main(argv=None):
     sub.add_argument('request',help='Plain-English description of the rule')
     sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'),help='Policy the draft is validated against')
     sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
+    sub=commands.add_parser('brief',help='Claude decision briefs for the top-ranked fix groups; advisory only (needs ANTHROPIC_API_KEY)')
+    sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'))
+    sub.add_argument('--limit',type=int,default=3,help='Number of top fix groups to brief, 1 to 5 (default: 3)')
+    sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
+    sub.add_argument('--effort',choices=['low','medium','high','xhigh','max'],help='Claude effort level (default: high)')
+    sub.add_argument('--out',help='Also write the briefs as JSON to this path')
+    sub=commands.add_parser('propose-correlations',help='Claude-proposed correlation rules for review; never applied (needs ANTHROPIC_API_KEY)')
+    sub.add_argument('--rules',default=str(ROOT/'policies/correlation-rules.yaml'),help='Current correlation rules file (read only)')
+    sub.add_argument('--limit',type=int,default=5,help='Number of unlinked pairings to review, 1 to 10 (default: 5)')
+    sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
+    sub.add_argument('--effort',choices=['low','medium','high','xhigh','max'],help='Claude effort level (default: high)')
+    sub.add_argument('--out',help='Also write the proposals as JSON to this path')
     sub=commands.add_parser('receipt',help='Generate deterministic ranking receipt')
     sub.add_argument('--policy',default=str(ROOT/'policies/default.yaml'))
     sub.add_argument('--out',default='runtime/receipts/receipt.json')
@@ -82,15 +94,21 @@ def main(argv=None):
             store.close()
         print(json.dumps(result, indent=2))
         return 1 if result.get('verdict') != 'PASS' else 0
-    elif args.command in ('ask','draft-rule'):
+    elif args.command in ('ask','draft-rule','brief','propose-correlations'):
         import sys
         from .agent import ClaudeUnavailable, run_investigation, draft_rule
+        if args.command!='draft-rule' and not Path(args.db).is_file():
+            print(json.dumps({'error': f"Database file does not exist: {args.db}"}, indent=2), file=sys.stderr)
+            return 1
         try:
             if args.command=='ask':
-                if not Path(args.db).is_file():
-                    print(json.dumps({'error': f"Database file does not exist: {args.db}"}, indent=2), file=sys.stderr)
-                    return 1
                 result=run_investigation(args.question,args.db,args.policy,model=args.model,effort=args.effort)
+            elif args.command=='brief':
+                from .briefs import generate_briefs
+                result=generate_briefs(args.db,args.policy,limit=args.limit,model=args.model,effort=args.effort)
+            elif args.command=='propose-correlations':
+                from .correlation_proposals import propose_correlations
+                result=propose_correlations(args.db,args.rules,limit=args.limit,model=args.model,effort=args.effort)
             else:
                 result=draft_rule(args.request,load_policy(args.policy),model=args.model)
         except ClaudeUnavailable as exc:
@@ -98,8 +116,13 @@ def main(argv=None):
                              indent=2), file=sys.stderr)
             return 2
         except ValueError as exc:
-            print(json.dumps({'error': 'Draft rejected: '+str(exc)[:200]}, indent=2), file=sys.stderr)
+            prefix='Draft rejected: ' if args.command=='draft-rule' else 'Invalid input: '
+            print(json.dumps({'error': prefix+str(exc)[:200]}, indent=2), file=sys.stderr)
             return 1
+        if getattr(args,'out',None):
+            out=Path(args.out)
+            out.parent.mkdir(parents=True,exist_ok=True)
+            out.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
         print(json.dumps(result,indent=2))
         return 0 if result.get('status','completed')=='completed' else 3
     else:

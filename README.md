@@ -39,9 +39,10 @@ See [architecture details](docs/ARCHITECTURE.md) and [pitch-deck messaging](docs
 4. **Decide.** A restricted, schema-checked YAML policy turns evidence into a ranked
    list of candidate fix groups. This step is fully deterministic: Claude never scores
    or ranks anything.
-5. **Explain.** Claude investigates the top groups through read-only tools, cites
-   finding IDs, and can draft new policy rules that stay unapproved until a human
-   reviews them.
+5. **Advise.** Claude writes a decision brief for each top group, proposes new
+   correlation rules for pairs no rule covers yet, answers questions through read-only
+   tools, and drafts policy rules. Every output cites finding IDs and stays advisory
+   until a human acts on it. See [How Claude fits](#how-claude-fits).
 6. **Prove.** Each run produces a Decision Receipt fingerprinting the dataset, the
    policy, and the ranking. Decision Replay compares two receipts and attributes every
    rank change to a policy change, a data change, or both.
@@ -53,7 +54,9 @@ See [architecture details](docs/ARCHITECTURE.md) and [pitch-deck messaging](docs
 | **Ranked candidate fix groups** | Rank, contextual priority, matched rule IDs with their score contributions, affected assets, cited finding IDs, and the original vendor severity and VPR |
 | **Decision Receipt** | Dataset fingerprint, policy fingerprint, and the full ranking. The same inputs always produce the same receipt ID |
 | **Decision Replay** | Which groups moved, by how much, and whether the cause was policy, data, or both |
-| **Investigation brief** | Next human review steps for the top groups, from the offline guided agent or from Claude |
+| **Decision briefs** | For each top group, Claude's recommended next action (`INVESTIGATE_NOW`, `SCHEDULE`, `NEEDS_EVIDENCE`, or `MANUAL_REVIEW`) with confidence, cited finding IDs, evidence gaps, and validation steps, bound to the receipt ID |
+| **Correlation proposals** | Draft `software_family` to `control_id` rules for same-asset pairs no rule covers yet, each with Claude's rationale and cited findings, never applied automatically |
+| **Investigation brief (offline)** | Next human review steps for the top groups from the guided agent, with no API key |
 | **OWASP audit** | 20 OWASP LLM and Agentic AI controls, each reported as `TESTED`, `DESIGN`, or `FAIL` |
 
 ### Example: the same policy, three evidence stages
@@ -130,6 +133,23 @@ show candidate fixes with source evidence and vendor scores, contextual policy
 decisions with versioned local policy approval, ingestion history, and before/after
 rank changes.
 
+## How Claude fits
+
+The deterministic engine owns every score, rank, and correlation, so the same inputs
+always produce the same Decision Receipt. Claude adds judgment around that core, and
+the code checks everything it returns:
+
+| Layer | Command | What Claude does | What the code enforces |
+|---|---|---|---|
+| **Decide** | `brief` | Recommends the next human action for each top fix group | Fixed output schema; every cited finding ID must be in that group's evidence; `INVESTIGATE_NOW` and `SCHEDULE` must cite evidence; ranks and scores are copied from the receipt, never changed |
+| **Correlate** | `propose-correlations` | Judges whether an unlinked same-asset pair is a real security relationship | Only pairs found by the engine can be proposed; a link must cite one vulnerability and one compliance finding; drafts pass the engine's rule validation; the rules file is never written |
+| **Investigate** | `ask` | Answers questions using four read-only evidence tools | Strict tool schemas, input validation, 5-turn and 5-tool budgets, untrusted-evidence wrapping |
+| **Policy** | `draft-rule` | Turns a plain-English request into a policy rule | Fixed output schema plus the policy validator; always `approved: false` |
+
+All four use `claude-opus-5-5` by default, with an automatic fallback model when
+Claude declines a request. Any evidence that looks like a prompt-injection attempt is
+flagged in the output for the reviewer.
+
 ## Use it with Claude
 
 ThreatWeave works with Claude in four ways. All of them use the same read-only
@@ -140,21 +160,29 @@ evidence tools; none can patch, scan, open tickets, or change anything in Tenabl
 ```bash
 python -m pip install -e '.[agent]'
 export ANTHROPIC_API_KEY=...        # never commit this
+threatweave --db runtime/demo.db brief --limit 3 --out runtime/briefs/demo.json
+threatweave --db runtime/demo.db propose-correlations
 threatweave --db runtime/demo.db ask "Which fix group should we investigate first, and why?"
 threatweave draft-rule "Raise priority for internet-exposed production assets"
 ```
 
-`ask` runs a bounded tool-use loop and prints a JSON record with the answer, the tools
-called, how the run ended (`completed`, `refused`, `truncated`, or `budget_exhausted`),
-and any warnings. `draft-rule` returns a schema-checked rule with `approved: false`.
-Exit codes: `0` completed, `1` bad input, `2` Claude unavailable, `3` the run did not
-complete.
+- `brief` prints one decision brief per top fix group with its status (`accepted`,
+  `rejected` with the reason, `refused`, `truncated`, or `invalid_json`) and the
+  Decision Receipt it is bound to.
+- `propose-correlations` prints Claude's decision for each unlinked pairing and a
+  `draft_rules_yaml` block to review. On the synthetic demo it reviews one pairing.
+- `ask` runs a bounded tool-use loop and reports how it ended (`completed`, `refused`,
+  `truncated`, or `budget_exhausted`) plus any warnings.
+- `draft-rule` returns a schema-checked policy rule with `approved: false`.
+
+`--out` also writes the JSON to a file. Exit codes: `0` completed, `1` bad input,
+`2` Claude unavailable, `3` the run did not fully complete.
 
 ### Dashboard (Claude API)
 
-With `ANTHROPIC_API_KEY` set, the **Policy & Investigation** tab can ask Claude to
-investigate bounded evidence or draft a policy rule. Drafts go to the YAML editor as
-unapproved proposals.
+With `ANTHROPIC_API_KEY` set, the **Policy & Investigation** tab can generate decision
+briefs, review unlinked correlation pairings, ask Claude to investigate bounded
+evidence, or draft a policy rule. Drafts go to the YAML editor as unapproved proposals.
 
 ### Claude Code (agent and MCP server)
 
@@ -204,7 +232,7 @@ variable is optional.
 
 | Variable | Used for | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Claude features (`ask`, `draft-rule`, dashboard) | none (Claude features off) |
+| `ANTHROPIC_API_KEY` | Claude features (`brief`, `propose-correlations`, `ask`, `draft-rule`, dashboard) | none (Claude features off) |
 | `THREATWEAVE_CLAUDE_MODEL` | Claude model ID | `claude-opus-5-5` |
 | `THREATWEAVE_CLAUDE_EFFORT` | Claude effort level: `low`, `medium`, `high`, `xhigh`, `max` | `high` |
 | `THREATWEAVE_CLAUDE_FALLBACKS` | `off` disables automatic fallback when Claude declines a request | on, for models that support it |
@@ -284,7 +312,7 @@ ThreatWeave makes no network calls unless you configure one of these:
 |---|---|---|
 | `cloud.tenable.com` (or `TENABLE_BASE_URL`) | `tenable-export`, `tenant_preflight.py` | Read-only export and status requests |
 | Your Security Center URL | `securitycenter-export` | Read-only analysis queries |
-| `api.anthropic.com` | `ask`, `draft-rule`, or the dashboard's Claude buttons, with `ANTHROPIC_API_KEY` set | Your question plus bounded tool results: hostnames, finding excerpts, and CMDB context, with credentials scrubbed |
+| `api.anthropic.com` | `brief`, `propose-correlations`, `ask`, `draft-rule`, or the dashboard's Claude buttons, with `ANTHROPIC_API_KEY` set | Your question or request, the engine's group summary, and bounded evidence: hostnames, finding titles and excerpts, control IDs, and CMDB context, with credentials scrubbed |
 
 Setting `ANTHROPIC_API_KEY` is the opt-in for sending evidence to Claude. The offline
 demo, `investigate`, the MCP server itself, and `check-owasp` send nothing off the
@@ -317,6 +345,9 @@ that is not a production throughput claim. See the
 | `src/threatweave/policy.py` | Restricted, schema-checked policy evaluator |
 | `src/threatweave/engine.py` | Fix groups, Decision Receipts, and Decision Replay |
 | `src/threatweave/agent.py` | Claude tool-use loop, rule drafting, and the offline guided agent |
+| `src/threatweave/briefs.py` | Claude decision briefs for the top fix groups |
+| `src/threatweave/correlation_proposals.py` | Unlinked same-asset pairings and Claude-proposed correlation rules |
+| `src/threatweave/llm_output.py` | Structured Claude calls and validation shared by both layers |
 | `src/threatweave/mcp_server.py` | Read-only MCP tool surface |
 | `src/threatweave/owasp_guardrails.py` | Secret scrubbing, prompt sanitizing, tool allowlist, OWASP audit |
 | `.claude/agents/threatweave.md`, `.mcp.json` | Claude Code subagent and MCP registration |
@@ -336,6 +367,10 @@ that is not a production throughput claim. See the
   MCP Python SDK 2.3.0 over stdio, and the Claude API path is verified through the
   Anthropic SDK with mocked responses. The Claude Code subagent and Claude Desktop setup
   have not yet been exercised in those clients.
+- **Claude's judgment is checked for traceability, not correctness.** The code rejects
+  briefs and proposals that are malformed or cite evidence Claude was not given, but a
+  well-formed recommendation can still be wrong. A human reviews every one. Neither
+  layer has yet been run against the live Claude API.
 - **Synthetic correlation rules.** The sample `software_family` to `control_id` rules
   illustrate the method and are not production-approved mappings.
 - **Score ties.** A fix group's score is capped at 100, so large estates produce ties.
