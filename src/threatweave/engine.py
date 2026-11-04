@@ -126,7 +126,9 @@ def rank_groups(store, policy, max_groups=None):
         g['rule_contributions']={k:g['rule_contributions'][k] for k in sorted(g['rule_contributions'])}
         g['evidence_flags']=sorted(g['evidence_flags'])
         ranked.append(g)
-    ranked.sort(key=lambda g:(-g['score'],-g['assets_count'],-g['finding_count'],g['fix_group_id']))
+    ranked.sort(key=lambda g:(-g['score'],-g['compounded_assets_count'],
+                               -g['critical_assets_count'],-g['production_assets_count'],
+                               -g['assets_count'],-g['finding_count'],g['fix_group_id']))
     for i,g in enumerate(ranked,start=1): g['rank']=i
     return ranked if max_groups is None else ranked[:max_groups]
 

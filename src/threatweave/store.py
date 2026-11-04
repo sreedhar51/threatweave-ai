@@ -2,6 +2,7 @@
 import json
 import sqlite3
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from .utils import canonical, digest
 
@@ -38,7 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_corr_asset ON correlations(asset_id);
 CREATE INDEX IF NOT EXISTS idx_corr_rule ON correlations(rule_id);
 CREATE TABLE IF NOT EXISTS ingest_runs (
  run_id TEXT PRIMARY KEY, provider TEXT, record_type TEXT, total INTEGER,
- accepted INTEGER, rejected INTEGER, report_json TEXT
+ accepted INTEGER, rejected INTEGER, report_json TEXT,
+ started_at TEXT, finished_at TEXT
 );
 """
 
@@ -51,6 +53,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.executescript(DDL)
         self._ensure_group_index()
+        self._ensure_ingest_history()
 
     def _ensure_group_index(self):
         """Idempotent SQLite migration; deterministic group identity matches engine.group_key()."""
@@ -69,6 +72,38 @@ class Store:
                 [(group_key(dict(row))[0], row["finding_id"]) for row in batch])
             self.db.commit()
         self.db.commit()
+
+    def _ensure_ingest_history(self):
+        """Idempotently add timestamps to the pre-existing ingest_runs table."""
+        existing = {row[1] for row in self.db.execute("PRAGMA table_info(ingest_runs)")}
+        for field in ("started_at", "finished_at"):
+            if field not in existing:
+                self.db.execute(f"ALTER TABLE ingest_runs ADD COLUMN {field} TEXT")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_ingest_finished ON ingest_runs(finished_at DESC)")
+        self.db.commit()
+
+    def record_ingest_run(self, provider, record_type, report, started_at, finished_at=None):
+        """Audit one import attempt; immutable inputs/receipt hashes are unchanged."""
+        finished_at = finished_at or datetime.now(timezone.utc).isoformat()
+        run_id = __import__('uuid').uuid4().hex
+        self.db.execute(
+            "INSERT INTO ingest_runs (run_id,provider,record_type,total,accepted,rejected,report_json,started_at,finished_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (run_id, str(provider), str(record_type), int(report['received']),
+             int(report['accepted']), int(report['rejected']),
+             json.dumps(report, sort_keys=True), started_at, finished_at))
+        self.db.commit()
+        return run_id
+
+    def recent_ingest_runs(self, limit=5):
+        limit = max(1, min(int(limit), 20))
+        return self.rows("SELECT provider,record_type,total,accepted,rejected,started_at,finished_at "
+                         "FROM ingest_runs ORDER BY rowid DESC LIMIT ?", (limit,))
+
+    def latest_observations(self):
+        return self.rows("SELECT source,MAX(observed_at) AS latest_observed_at "
+                         "FROM findings WHERE observed_at IS NOT NULL AND observed_at != '' "
+                         "GROUP BY source ORDER BY source")
 
     def data_version(self):
         """Cheap UI cache hint; explicitly clear caches on in-process writes.

@@ -35,6 +35,14 @@ PYTHONPATH=src pytest -q
 
 All demo hostnames, CVE-like identifiers, CMDB data, and CIS controls are **synthetic** and are not actual Tenable findings or licensed CIS content.
 
+## Dashboard Part B improvements
+
+The Streamlit interface supports a hostname-only asset finder scoped to selected candidate Fix Groups, vendor severity/VPR vs. contextual priority tables, verified CMDB context and correlated CIS rationale. The Policy tab previews a rule-level change and saves **versioned local** YAML and a Decision Receipt only after explicit approval. Decision Replay accepts policy files, session-approved drafts and saved receipts, reporting exact source evidence changes and rule-contribution deltas. Ingestion history is local, time-stamped and excluded from Decision Receipt hashes.
+
+**Ranking tie-breaker change:** Equal scores use compounded assets, then verified critical assets, production assets, all affected assets, finding count and stable group ID. The original severity, VPR, policy DSL and scoring formula are unchanged. This order can produce new ranking positions/receipt IDs versus earlier releases for unchanged evidence.
+
+To install all UI + test requirements, use `python -m pip install -e ".[ui,dev]"`. GitHub Actions runs the Streamlit AppTest smoke test in addition to core tests. In environments where Streamlit cannot be installed, the AppTest is skipped; Python compilation alone does not prove interactive UX.
+
 ## Dashboard
 
 ```bash
