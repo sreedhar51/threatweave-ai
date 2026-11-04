@@ -1,6 +1,7 @@
 """Local read-model: source records remain distinct and queryable by evidence ID."""
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from .utils import canonical, digest
 
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS findings (
 );
 CREATE INDEX IF NOT EXISTS idx_f_asset ON findings(asset_id);
 CREATE INDEX IF NOT EXISTS idx_f_kind ON findings(kind);
+CREATE INDEX IF NOT EXISTS idx_f_family ON findings(kind,software_family);
 CREATE TABLE IF NOT EXISTS cmdb (
  ci_id TEXT PRIMARY KEY, asset_id TEXT, verified INTEGER, business_service TEXT,
  criticality TEXT, environment TEXT, role TEXT, support_group TEXT,
@@ -31,6 +33,9 @@ CREATE TABLE IF NOT EXISTS correlations (
  vuln_id TEXT NOT NULL, compliance_id TEXT NOT NULL, rule_id TEXT NOT NULL,
  rationale TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_corr_vuln ON correlations(vuln_id);
+CREATE INDEX IF NOT EXISTS idx_corr_asset ON correlations(asset_id);
+CREATE INDEX IF NOT EXISTS idx_corr_rule ON correlations(rule_id);
 CREATE TABLE IF NOT EXISTS ingest_runs (
  run_id TEXT PRIMARY KEY, provider TEXT, record_type TEXT, total INTEGER,
  accepted INTEGER, rejected INTEGER, report_json TEXT
@@ -38,12 +43,44 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 """
 
 class Store:
-    def __init__(self, path="runtime/threatweave.db"):
+    def __init__(self, path="runtime/threatweave.db", *, check_same_thread=True):
         self.path = str(path)
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path)
+        self.db = sqlite3.connect(self.path, check_same_thread=check_same_thread)
+        self.lock = threading.RLock()
         self.db.row_factory = sqlite3.Row
         self.db.executescript(DDL)
+        self._ensure_group_index()
+
+    def _ensure_group_index(self):
+        """Idempotent SQLite migration; deterministic group identity matches engine.group_key()."""
+        from .engine import group_key
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(findings)")}
+        if "group_id" not in columns:
+            self.db.execute("ALTER TABLE findings ADD COLUMN group_id TEXT")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_f_group ON findings(group_id, finding_id)")
+        # Backfill rows from an older installation in bounded batches.
+        while True:
+            batch = self.db.execute(
+                "SELECT * FROM findings WHERE group_id IS NULL LIMIT 5000").fetchall()
+            if not batch: break
+            self.db.executemany(
+                "UPDATE findings SET group_id=? WHERE finding_id=?",
+                [(group_key(dict(row))[0], row["finding_id"]) for row in batch])
+            self.db.commit()
+        self.db.commit()
+
+    def data_version(self):
+        """Cheap UI cache hint; explicitly clear caches on in-process writes.
+
+        Does not substitute for full receipt fingerprints. External in-place
+        updates with unchanged counts require manual cache refresh.
+        """
+        tables = ("assets", "findings", "cmdb", "correlations")
+        return (self.path,
+                tuple(self.count(table) for table in tables),
+                self.db.execute("SELECT COALESCE(MAX(rowid),0) FROM ingest_runs").fetchone()[0],
+                self.db.execute("PRAGMA data_version").fetchone()[0])
 
     def close(self):
         self.db.close()
@@ -75,8 +112,10 @@ class Store:
     def upsert_finding(self, r):
         cols = ("finding_id","asset_id","kind","source","title","severity","vpr","plugin_id",
                 "port","protocol","cves_json","status","observed_at","solution","software_family",
-                "control_id","expected_value","actual_value","audit_file","source_hash","source_excerpt")
-        vals = [canonical(r.get("cves") or []) if c=="cves_json" else r.get(c) for c in cols]
+                "control_id","expected_value","actual_value","audit_file","source_hash","source_excerpt","group_id")
+        from .engine import group_key
+        vals = [(group_key(r)[0] if c=="group_id" else
+                 canonical(r.get("cves") or []) if c=="cves_json" else r.get(c)) for c in cols]
         self.db.execute(f"INSERT OR REPLACE INTO findings ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",vals)
 
     def upsert_cmdb(self, r):

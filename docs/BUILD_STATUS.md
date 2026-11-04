@@ -64,3 +64,13 @@ Confirm contest eligibility and deadline, validate authorized tenant export, run
 - Added minimal `CLAUDE.md` / `AGENTS.md`, a SWARM-readiness checklist and CI repeatability check. These are not Exchange Inspector vetting.
 - Oversized Claude tool responses now return valid structured `TRUNCATED` JSON instead of invalid fragments. No new scorer, vendor writes or cross-host inferences.
 - Performance was checked synthetically at 5,000 generated assets per stage. No certified live tenant throughput, customer outcomes, real-world time-saved measurement or Exchange approval claim.
+
+## UI and performance Part A checkpoint (November 3, 2026)
+
+- New review branch `feat/swarm-ui-evidence-performance` isolates tenant, synthetic fixture, and staged UI SQLite databases. The synthetic loader cannot write to a tenant database; staged rebuilds close cached SQLite connections before recreating files on Windows.
+- Added idempotent `findings.group_id` migration, batched backfill (5,000 rows), and indexed group evidence lookup. Correlation `vuln_id` / `asset_id` access is indexed.
+- Cached read-only dashboard aggregation and ranking by selected database, row-count / ingest-run version hints, and policy hash; no new receipt creation occurs unless the user requests it. **Known limitation:** external in-place updates that preserve row counts may require clearing the app cache; this is a presentation cache, not a Decision Receipt fingerprint.
+- Added source and evidence coverage panels, read-only vendor severity/VPR group maxima, and optional 0 / 5,000 / 50,000 synthetic staged runs with stage timings. Original contextual policy scoring and deterministic tie order remain unchanged.
+- Measured locally with `python scripts/bench.py --assets 50000` on Python 3.13.5 and synthetic fixtures (single execution, not production throughput): **50,000 assets, 50,000 vulnerabilities, 8,334 compliance findings, 4,167 CMDB records**, 8,334 candidate correlations, 3 fix groups. Elapsed times: **ingest 4.650s, correlate 0.168s, rank_groups 1.507s, indexed evidence_for_group 0.000341s**. Machine-specific measurements; no implication of equivalent results on a Windows laptop or a 250,000-asset estate.
+- Offline tests: **51 passed** (46 original + 5 added Part A checks); three-run synthetic ship-check passes. Browser-level Streamlit AppTest not executed in this environment because Streamlit is not installed; run on the user's local UI-enabled Python environment before merge. A manually verified 50,000-asset staged UI session is also outstanding.
+- Parts B/C/D, including policy approvals, richer replay and OWASP PR #3, are intentionally **not implemented** in this checkpoint. OWASP PR #3 is open, not merged into `main` at branch creation.
