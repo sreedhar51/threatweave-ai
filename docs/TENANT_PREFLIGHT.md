@@ -26,7 +26,7 @@ Successful GET requests confirm authentication and their specific read permissio
 
 Tenable VM documented shapes: assets contain `id` and often `hostname`/`operating_system` arrays; compliance contains `asset_uuid`, `compliance_full_id`, `audit_file`, `check_name`, `status`, and may contain `asset.id`. Source severity and VPR must remain unchanged. Correlations are supported only when the asset UUID matches and the relevant control rule is validated. IP addresses are never an identity join key.
 
-Current validation status: **The application code and mocked API behavior have been tested locally; no real tenant connection was possible from the ChatGPT execution environment (DNS/network resolution blocked).** Real lab availability, scan coverage, rate limits, export schema and privilege grants remain unverified until the preflight is executed from an authorized network.
+Current validation status: **The application code and mocked API behavior have been tested locally; no real tenant connection was possible from the build environment (DNS/network resolution blocked).** Real lab availability, scan coverage, rate limits, export schema and privilege grants remain unverified until the preflight is executed from an authorized network.
 
 References: https://developer.tenable.com/reference/assets-list-assets , https://developer.tenable.com/reference/io-exports-compliance-create , https://developer.tenable.com/reference/io-exports-compliance-download
 

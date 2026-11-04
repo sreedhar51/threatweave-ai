@@ -404,8 +404,11 @@ with tab_policy:
                     value='Which fixes changed priority because of CIS evidence?',key='claude_question')
         if st.button('Ask ThreatWeave Agent',key='ask_agent'):
             try:
-                from threatweave.agent import investigate
-                st.write(investigate(question,DB,str(ROOT/'policies/business-context.yaml')))
+                from threatweave.agent import run_investigation
+                record=run_investigation(question,DB,str(ROOT/'policies/business-context.yaml'))
+                for warning in record.get('warnings',[]):
+                    st.warning(warning)
+                st.write(record['answer'])
             except Exception as exc:
                 from threatweave.agent import ClaudeUnavailable
                 st.error('Agent unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))

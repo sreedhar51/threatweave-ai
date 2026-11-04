@@ -10,6 +10,7 @@ from .tools import overview,list_fix_groups,retrieve_asset,retrieve_group_eviden
 from .owasp_guardrails import (
     scrub_data,
     sanitize_prompt_text,
+    detect_injection_heuristics,
     validate_draft_rule_safety,
     wrap_untrusted_evidence,
     ALLOWED_AGENT_TOOLS,
@@ -206,14 +207,31 @@ def run_investigation(question, db_path, policy_path, model=None, effort=None):
 
     Returns a structured record: the answer, how the run ended, which tools ran,
     and which model served the final turn (a refusal fallback may change it).
+    If any tool result matches the prompt-injection heuristics, the run continues
+    (evidence is already wrapped as untrusted and the tools are read-only), but the
+    record sets `injection_flagged` and carries a warning for the human reviewer.
     """
     client = _client()
     settings = _settings(model, effort)
     safe_question = sanitize_prompt_text(question, max_chars=2000)
     messages = [{'role': 'user', 'content': safe_question}]
     tool_log = []
+    flagged_tools = []
     record = {'mode': 'claude', 'read_only': True, 'requested_model': settings['model'],
-              'refusal_fallbacks': settings['fallbacks'], 'tool_calls': tool_log}
+              'refusal_fallbacks': settings['fallbacks'], 'tool_calls': tool_log,
+              'injection_flagged': False, 'warnings': []}
+
+    def finish(**fields):
+        record.update(fields)
+        if flagged_tools:
+            record['injection_flagged'] = True
+            record['injection_flagged_tools'] = sorted(set(flagged_tools))
+            record['warnings'].append(
+                'Evidence returned by ' + ', '.join(record['injection_flagged_tools']) +
+                ' contains text resembling prompt-injection instructions. Treat this answer '
+                'with caution and review the cited source evidence before acting.')
+        return record
+
     for turn in range(1, MAX_TURNS + 1):
         response = _create(client, settings, max_tokens=MAX_TOKENS, system=SYSTEM,
                            messages=messages, tools=TOOLS, cache_control={'type': 'ephemeral'})
@@ -223,20 +241,17 @@ def run_investigation(question, db_path, policy_path, model=None, effort=None):
             record['served_model'] = served
         if response.stop_reason == 'refusal':
             category = _refusal_category(response)
-            record.update(status='refused', refusal_category=category, answer=(
+            return finish(status='refused', refusal_category=category, answer=(
                 'Claude declined this request' + (f' ({category})' if category else '') +
                 '. Run `threatweave investigate` for the deterministic guided investigation.'))
-            return record
         # Append the full content (thinking and tool_use blocks included), unchanged.
         messages.append({'role': 'assistant', 'content': response.content})
         calls = [block for block in response.content if block.type == 'tool_use']
         if response.stop_reason == 'max_tokens':
-            record.update(status='truncated', answer=(_text(response) +
+            return finish(status='truncated', answer=(_text(response) +
                 '\n\n[Response hit the output limit; narrow the question.]').strip())
-            return record
         if not calls:
-            record.update(status='completed', answer=_text(response))
-            return record
+            return finish(status='completed', answer=_text(response))
         results = []
         for index, call in enumerate(calls):
             if index >= MAX_TOOLS_PER_TURN:
@@ -246,7 +261,10 @@ def run_investigation(question, db_path, policy_path, model=None, effort=None):
             else:
                 try:
                     args = _tool_args(call.name, call.input)
-                    payload, ok = _bounded_tool_result(_run_tool(call.name, args, db_path, policy_path)), True
+                    evidence = _run_tool(call.name, args, db_path, policy_path)
+                    if detect_injection_heuristics(scrub_data(evidence)):
+                        flagged_tools.append(call.name)
+                    payload, ok = _bounded_tool_result(evidence), True
                 except (ValueError, KeyError) as error:
                     payload, ok = json.dumps({'error': str(error)}), False
             result = {'type': 'tool_result', 'tool_use_id': call.id, 'content': payload}
@@ -255,9 +273,8 @@ def run_investigation(question, db_path, policy_path, model=None, effort=None):
             results.append(result)
             tool_log.append({'tool': call.name, 'ok': ok})
         messages.append({'role': 'user', 'content': results})
-    record.update(status='budget_exhausted',
+    return finish(status='budget_exhausted',
                   answer='Investigation stopped at tool-call budget. Review bounded evidence manually.')
-    return record
 
 
 def investigate(question, db_path, policy_path, model=None):
