@@ -168,8 +168,7 @@ with st.sidebar:
                         result=ingest_file(store,uploaded,record_type,provider)
                     invalidate_caches()
                     show_rows('Import summary',[{k:result.get(k) for k in ('provider','record_type','received','accepted','rejected')}])
-                    with st.expander('Show raw evidence'):
-                        st.json(result)
+                    st.json(result)
                 except Exception as exc:
                     st.error(f'Import failed: {type(exc).__name__}')
         if st.button('Recompute CIS correlations',disabled=source in ('Staged demo','Enterprise demo'),key='recompute_correlations'):
@@ -345,13 +344,17 @@ with tab_fixes:
                             for r in dossier['cmdb']],
                             empty_message='No verified CMDB mapping; business criticality remains unknown.')
                         st.caption('Candidate Fix Group references: '+str(len(dossier['fix_group_refs']))+' shown.')
-                        with st.expander('Evidence provenance and raw references'):
-                            st.json({'asset_uuid':dossier_id,'counts':counts,
-                                     'fix_groups':dossier['fix_group_refs'],
-                                     'identity':dossier['identity_note'],
-                                     'reachability':dossier['reachability_note']})
+                        st.caption('Raw evidence provenance is available in the separate advanced section below.')
         else:
             st.info('No matching asset. Load a synthetic demonstration source or search a different hostname.')
+        with st.expander('Asset evidence provenance · diagnostic details', expanded=False):
+            if dossier_choices and dossier:
+                st.json({'asset_uuid':dossier_id,'counts':dossier['counts'],
+                         'fix_groups':dossier['fix_group_refs'],
+                         'identity':dossier['identity_note'],
+                         'reachability':dossier['reachability_note']})
+            else:
+                st.caption('Select an asset to see provenance.')
         with st.expander('Portfolio Fix Groups · cross-asset remediation view', expanded=False):
             st.subheader('Evidence-backed candidate remediation groups')
             st.caption('Candidate solution groupings are not verified one-patch fixes. Tenable severity and VPR are unchanged.')
@@ -389,72 +392,70 @@ with tab_fixes:
                 with store.lock:
                     evidence=evidence_for_group(store,group_id,limit=25)
                 show_rows('Supporting source evidence',evidence['evidence'])
-                with st.expander('Show raw evidence'):
-                    st.json(evidence)
+                st.caption('Source references shown in the table above; inspect one group at a time.')
             else:
                 st.warning('No findings available in this source. Choose an isolated demonstration source if needed.')
                 group_id=None
 
 
-            with st.expander('Advanced · legacy fix-group asset drilldown',expanded=False):
-                st.subheader('Asset investigation')
-                hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
-                scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
-                               key='asset_scope')
+        with st.expander('Advanced · legacy fix-group asset drilldown',expanded=False):
+            st.subheader('Asset investigation')
+            hostname_query=st.text_input('Search by hostname (not IP)',key='asset_hostname_search')
+            scope=st.radio('Asset selection scope', ['Current Fix Group','All assets'],horizontal=True,
+                           key='asset_scope')
+            with store.lock:
+                candidates=asset_choices(store,
+                    group_id=group_id if scope=='Current Fix Group' else None,
+                    hostname_query=hostname_query,limit=100)
+            if candidates:
+                assets_by_label={
+                    (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
+                     ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
+                asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
+                                         list(assets_by_label),key='selected_asset')
+                selected_id=assets_by_label[asset_label]
+                st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
+            else:
+                selected_id=None
+                st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
+            contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
+                                          key='contextual_asset')
+            if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
                 with store.lock:
-                    candidates=asset_choices(store,
-                        group_id=group_id if scope=='Current Fix Group' else None,
-                        hostname_query=hostname_query,limit=100)
-                if candidates:
-                    assets_by_label={
-                        (str(row['hostname'] or '(no hostname)')+' · '+row['asset_id']+
-                         ' · '+str(row['findings'])+' findings'):row['asset_id'] for row in candidates}
-                    asset_label=st.selectbox('Choose an asset (hostname and authoritative UUID)',
-                                             list(assets_by_label),key='selected_asset')
-                    selected_id=assets_by_label[asset_label]
-                    st.caption('Only the top 100 matches are shown. Narrow by hostname to find others.')
+                    st.session_state['asset_investigation']={
+                        'db':DB,'asset_id':selected_id,
+                        'data':get_asset_exposure(store,selected_id,limit=150,
+                                policy=policy if contextual_asset else None)}
+            investigation=st.session_state.get('asset_investigation')
+            if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
+                result=investigation['data']
+                if not result.get('asset'):
+                    st.warning('Selected asset not found in the current database.')
                 else:
-                    selected_id=None
-                    st.info('No matching assets. Try All assets or another hostname; IP addresses are not used for matching.')
-                contextual_asset=st.checkbox('Include contextual priority and CIS rationale',value=True,
-                                              key='contextual_asset')
-                if st.button('Investigate asset',disabled=not selected_id,key='investigate_asset'):
-                    with store.lock:
-                        st.session_state['asset_investigation']={
-                            'db':DB,'asset_id':selected_id,
-                            'data':get_asset_exposure(store,selected_id,limit=150,
-                                    policy=policy if contextual_asset else None)}
-                investigation=st.session_state.get('asset_investigation')
-                if investigation and investigation.get('db')==DB and investigation.get('asset_id')==selected_id:
-                    result=investigation['data']
-                    if not result.get('asset'):
-                        st.warning('Selected asset not found in the current database.')
-                    else:
-                        asset=result['asset']
-                        st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
-                        st.caption('Tenable UUID: '+str(asset.get('asset_id')))
-                        evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
-                        finding_rows=[]
-                        for finding in result.get('findings',[]):
-                            e=evaluation.get(finding['finding_id'],{})
-                            finding_rows.append({
-                                'finding_id':finding['finding_id'], 'type':finding['kind'],
-                                'title':finding['title'],'status':finding['status'],
-                                'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
-                                'contextual_score':e.get('contextual_score'),
-                                'contextual_priority':e.get('contextual_priority'),
-                                'matched_rules':', '.join(e.get('matched_rules',[])),
-                                'evidence_flags':', '.join(e.get('evidence_flags',[]))})
-                        show_rows('Findings: vendor vs contextual assessment',finding_rows)
-                        show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
-                        show_rows('Verified CMDB context',[
-                            {'business_service':x.get('business_service'),
-                             'criticality':x.get('criticality'),
-                             'support_group':x.get('support_group'),
-                             'environment':x.get('environment')} for x in result.get('cmdb',[])])
-                        st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
-                        with st.expander('Show raw evidence'):
-                            st.json(result)
+                    asset=result['asset']
+                    st.markdown('**Asset:** '+str(asset.get('hostname') or '(no hostname)'))
+                    st.caption('Tenable UUID: '+str(asset.get('asset_id')))
+                    evaluation={x['finding_id']:x for x in result.get('finding_evaluations',[])}
+                    finding_rows=[]
+                    for finding in result.get('findings',[]):
+                        e=evaluation.get(finding['finding_id'],{})
+                        finding_rows.append({
+                            'finding_id':finding['finding_id'], 'type':finding['kind'],
+                            'title':finding['title'],'status':finding['status'],
+                            'vendor_severity':finding['severity'], 'vendor_vpr':finding['vpr'],
+                            'contextual_score':e.get('contextual_score'),
+                            'contextual_priority':e.get('contextual_priority'),
+                            'matched_rules':', '.join(e.get('matched_rules',[])),
+                            'evidence_flags':', '.join(e.get('evidence_flags',[]))})
+                    show_rows('Findings: vendor vs contextual assessment',finding_rows)
+                    show_rows('Correlated CIS failures and rationale',result.get('correlated_cis_evidence',[]))
+                    show_rows('Verified CMDB context',[
+                        {'business_service':x.get('business_service'),
+                         'criticality':x.get('criticality'),
+                         'support_group':x.get('support_group'),
+                         'environment':x.get('environment')} for x in result.get('cmdb',[])])
+                    st.caption('Cross-host reachability remains unverified; correlation only joins authoritative same-asset IDs.')
+                    st.json(result)
     except Exception as exc:
         st.error('Unable to render fixes tab: ' + type(exc).__name__)
 
