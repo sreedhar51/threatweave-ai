@@ -1,0 +1,148 @@
+# Enterprise contextual-prioritization *example* for an entirely synthetic demo.
+# This is not an approved production risk policy, CVSS recalculation or SLA rule.
+# Uses only fields/actions supported by src/threatweave/policy.py.
+# Score deltas and floors are illustrative weights requiring human calibration.
+# Do not equate "internet_exposure: confirmed" to proven exploit reachability.
+policy_id: enterprise-context-demo
+version: '1.0'
+rules:
+  - id: ENT-EXT-CRITICAL
+    name: Review critical vulnerability on confirmed internet-exposed asset
+    when:
+      kind: vulnerability
+      severity: critical
+      internet_exposure: confirmed
+    then:
+      priority_floor: urgent
+      add_evidence_flag: external_exposure_needs_validation
+      require_review: true
+
+  - id: ENT-EXT-HIGH
+    name: Confirmed internet exposure amplifies high-severity vulnerability
+    when:
+      kind: vulnerability
+      severity: high
+      internet_exposure: confirmed
+    then:
+      score_add: 14
+      add_evidence_flag: external_exposure_needs_validation
+      require_review: true
+
+  - id: ENT-PAYMENT-SERVICE
+    name: Verified critical production payment service
+    when:
+      kind: vulnerability
+      environment: production
+      criticality: critical
+      business_tag: payments
+    then:
+      score_add: 22
+      priority_floor: high
+
+  - id: ENT-IDENTITY-SERVICE
+    name: Verified critical production identity service
+    when:
+      kind: vulnerability
+      environment: production
+      criticality: critical
+      role: identity_server
+    then:
+      score_add: 18
+      add_evidence_flag: identity_service_dependency_review
+
+  - id: ENT-CRITICAL-PRODUCTION
+    name: Verified critical production service blast-radius review
+    when:
+      kind: vulnerability
+      environment: production
+      criticality: critical
+    then:
+      score_add: 12
+
+  - id: ENT-HIGH-PRODUCTION
+    name: Verified high-criticality production system
+    when:
+      kind: vulnerability
+      environment: production
+      criticality: high
+    then:
+      score_add: 8
+
+  - id: ENT-COMPOUNDED
+    name: Relevant CIS failure corroborates vulnerability on same asset
+    when:
+      kind: vulnerability
+      compounded_exposure: true
+    then:
+      score_add: 14
+      add_evidence_flag: same_asset_cis_correlated_only
+
+  - id: ENT-IDENTITY-COMPOUNDED
+    name: Identity service with matching failed configuration safeguard
+    when:
+      kind: vulnerability
+      role: identity_server
+      compounded_exposure: true
+    then:
+      score_add: 9
+      require_review: true
+
+  - id: ENT-REGULATED-CONTEXT
+    name: Verified critical regulated workload needs expedited human review
+    when:
+      kind: vulnerability
+      criticality: critical
+      business_tag: regulated
+    then:
+      score_add: 6
+      require_review: true
+
+  - id: ENT-BACKUP-RECOVERY
+    name: High-criticality backup or recovery service
+    when:
+      kind: vulnerability
+      criticality: high
+      business_tag: backup
+    then:
+      score_add: 10
+      add_evidence_flag: recovery_dependency_review
+
+  - id: ENT-PRIVILEGED-ENDPOINT
+    name: Verified high-criticality privileged workstation
+    when:
+      kind: vulnerability
+      criticality: high
+      role: privileged_workstation
+    then:
+      score_add: 8
+      require_review: true
+
+  - id: ENT-UNKNOWN-EXPOSURE
+    name: Critical asset with unknown external-exposure evidence
+    when:
+      kind: vulnerability
+      criticality: critical
+      internet_exposure: unknown
+    then:
+      add_evidence_flag: exposure_unknown_validate_before_escalation
+      require_review: true
+
+  - id: ENT-EXTERNAL-COMPLIANCE
+    name: Failed CIS check on confirmed internet-exposed asset
+    when:
+      kind: compliance
+      internet_exposure: confirmed
+    then:
+      score_add: 5
+      add_evidence_flag: verify_control_applicability
+      require_review: true
+
+  - id: ENT-PRODUCTION-COMPLIANCE
+    name: Failed CIS control on verified critical production asset
+    when:
+      kind: compliance
+      environment: production
+      criticality: critical
+    then:
+      score_add: 6
+      require_review: true
