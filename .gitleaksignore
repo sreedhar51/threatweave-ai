@@ -1,0 +1,19 @@
+# Reviewed historical Gitleaks false positives only.
+# See docs/GITLEAKS_FINDINGS_REVIEW.md for triage and evidence.
+#
+# Four unique fingerprints cover the five reported generic-api-key matches:
+# two documentation-only findings and three synthetic redaction-test matches.
+# Two test findings share the same commit, file, rule and line (line 23).
+#
+# Format: <full-commit-sha>:<relative-path>:<rule-id>:<start-line>
+# IMPORTANT: No whole-file/path/rule allowlist. Do not add new entries without
+# inspecting the exact finding and documenting the assessment.
+# An independent scanner may ignore this file; always review new findings.
+
+# Documentation-only matches: OWASP LLM02 security/redaction controls
+0f71cf4ab63be4c90f18f447c321c80cff1b9441:docs/OWASP_AGENT_BEST_PRACTICES.md:generic-api-key:58
+b06e465ee76c13a77aa1a709b968e04400e581e0:docs/OWASP_AGENT_BEST_PRACTICES.md:generic-api-key:57
+
+# Fabricated test strings: secret-scrubber regression fixtures
+b06e465ee76c13a77aa1a709b968e04400e581e0:tests/test_owasp_guardrails.py:generic-api-key:22
+b06e465ee76c13a77aa1a709b968e04400e581e0:tests/test_owasp_guardrails.py:generic-api-key:23
