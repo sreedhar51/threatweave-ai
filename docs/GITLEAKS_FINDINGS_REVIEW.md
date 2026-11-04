@@ -5,7 +5,7 @@
 **Source:** Contributor-provided local Gitleaks Git-history scan, `gitleaks git --log-opts="--all" --redact ...`  
 **Reported scan coverage:** 51 commits reachable from the locally fetched refs  
 **Original scan result:** exit code **1**, **5** `generic-api-key` findings  
-**Status:** Likely synthetic/documentation-only false positives; **independent Exchange screening not yet passed**
+**Status:** Five historical matches reviewed as synthetic/documentation-only; the subsequent contributor-reported local scan found no unignored findings. Independent Exchange screening remains a separate process.
 
 This is a transparent record of the *five reported matches*, not a declaration that Gitleaks passed, a proof that every historical ref was scanned, or a verified list of actual secrets. The reported output excluded credential values. The source contexts were reviewed at the two flagged historical revisions. **No secret values are reproduced here.**
 
@@ -46,7 +46,7 @@ A root [`.gitleaksignore`](../.gitleaksignore) file has been proposed for the ex
 - Synthetic tests: commit `b06e465e`, lines 22 and 23, including both matches on line 23.
 - No file-wide allowlist, blanket `generic-api-key` exemption, or ignore of new findings.
 
-**Required verification:** These entries were assembled from the previously shared report's commit prefixes, paths, rule IDs and start lines; the original raw report's exact `Fingerprint` values were **not available in this editing environment**. Compare the root ignore entries with the exact locally generated Gitleaks report fingerprints, correcting any mismatch, then rerun the full-history scan. Even after it exits zero with known exceptions, describe that outcome as **"no unignored findings"**, not "history contains no matches." Independent Tenable screening may apply other rules or ignore handling.
+**Local verification:** After the scoped ignore entries were added, the contributor reported a full-history Gitleaks scan on 2026-11-04: **85 commits scanned, no unignored findings, exit code 0**. The original matches remain in historical commits. Independent scanning may use different rules or exception handling.
 
 Safe PowerShell verification (do not print `Match` or `Secret` values):
 
@@ -61,7 +61,7 @@ $LASTEXITCODE
 
 ## Submission disposition
 
-**Open / requires reviewer confirmation.** A local Gitleaks scan with these five results exited 1. Tenable's Exchange reviewers independently screen the full repository Git history; their acceptance of documented false positives or exclusions **must not be assumed**.
+**Local scan complete; independent review separate.** The first scan returned five matches and exit code 1; a later local scan of 85 commits using the narrowly scoped ignore file returned no unignored findings and exit code 0. The historical matches have not been erased, and Tenable's independent review is not represented as completed.
 
 Recommended follow-up:
 
