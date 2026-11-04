@@ -254,7 +254,7 @@ variable is optional.
 
 ## Connect real, authorized data
 
-Use **rotated** credentials, entered through a secret manager or a hidden prompt.
+Use **authorized, currently valid** credentials, entered through a secret manager or a hidden prompt.
 Never commit secrets, tenant exports, or SQLite databases.
 
 **Windows PowerShell**
