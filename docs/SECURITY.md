@@ -11,3 +11,23 @@
 - File import rejects records lacking authoritative asset identities. Correlation is limited to specific allowed technology-control pairs.
 - Supply-chain: no automated installation of remote code, no remote command execution, and no shell generated from scan text.
 - Known risk: CSV/JSON imported fields are untrusted and some large JSON arrays are read entirely into memory. Prefer bounded source exports and JSONL for large volumes.
+
+## OWASP Top 10 for LLM and Agentic Applications
+
+ThreatWeave AI implements programmatic guardrails and defense-in-depth architecture aligned with:
+- **OWASP Top 10 for Large Language Model Applications (LLM01-LLM10)**
+- **OWASP Top 10 for Agentic AI Applications (ASI01-ASI10)**
+
+Key controls include:
+- **Zero Autonomous Writes / Excessive Agency Block (LLM06, ASI01)**: Read-only tool allowlist (`get_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`). No remediation, patching, or ticketing tools. Policy proposals require human review (`approved: False`).
+- **Prompt Injection & Untrusted Data Isolation (LLM01, ASI02)**: Ingested scanner output and external strings are delimited as untrusted data; heuristic injection payloads are sanitized.
+- **Sensitive Credential Scrubber (LLM02, ASI07)**: Automated regex redaction of Anthropic keys, Tenable keys, Bearer tokens, passwords, and private keys.
+- **Deterministic Decisions & Traceability (LLM09, ASI08)**: Risk scores are computed exclusively by the deterministic ContextIQ engine, not by LLM hallucination. Decision Receipts provide cryptographic audit trails.
+- **Consumption Limits (LLM10, ASI09)**: Tool calls and turn iterations capped at 5; tool payloads capped at 16,000 characters with explicit JSON `TRUNCATED` signaling.
+
+Run the compliance check via:
+```bash
+threatweave --db runtime/threatweave.db check-owasp
+```
+
+See the complete architecture specification and control mapping in [OWASP Agent Best Practices](OWASP_AGENT_BEST_PRACTICES.md).

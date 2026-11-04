@@ -45,6 +45,8 @@ def main(argv=None):
     sub.add_argument('--out',default='runtime/receipts/receipt.json')
     sub=commands.add_parser('compare',help='Compare two saved Decision Receipts')
     sub.add_argument('before');sub.add_argument('after')
+    sub=commands.add_parser('check-owasp',help='Audit system against OWASP Top 10 for LLM and Agentic AI applications')
+    sub.add_argument('--policy',default=str(ROOT/'policies/business-context.yaml'))
     args=parser.parse_args(argv)
     if args.command=='demo' and args.staged:
         from .staged import run_staged_demo
@@ -93,6 +95,9 @@ def main(argv=None):
                 obj=create_receipt(store,load_policy(args.policy),args.out)
                 result={'receipt_id':obj['receipt_id'],'saved_to':args.out,'groups':len(obj['rankings']),
                         'top_groups':obj['rankings'][:5]}
+            elif args.command=='check-owasp':
+                from .owasp_guardrails import audit_owasp_compliance
+                result=audit_owasp_compliance(store,args.policy)
         finally:store.close()
     print(json.dumps(result,indent=2))
     return 0

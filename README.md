@@ -18,6 +18,8 @@ python -m pip install -e .
 threatweave --db runtime/demo.db demo
 # Run the standalone guided investigation agent (no LLM key needed)
 threatweave --db runtime/demo.db investigate
+# Run OWASP Top 10 for LLM and Agentic AI compliance audit
+threatweave --db runtime/demo.db check-owasp
 # Read the full baseline/contextual receipt comparison
 threatweave compare runtime/receipts/demo-before.json runtime/receipts/demo-after.json
 # Run tests
@@ -121,6 +123,7 @@ Tenable VM exports use asynchronous jobs and download chunks. Assets initiate vi
 - `src/threatweave/policy.py` — restricted, schema-checked policy evaluator
 - `src/threatweave/engine.py` — candidate Fix Groups, Decision Receipts and Replay
 - `src/threatweave/agent.py` — standalone offline investigator + optional Claude reasoning
+- `src/threatweave/owasp_guardrails.py` — OWASP LLM & Agentic AI guardrails, secret scrubbers, prompt sanitizers, audit suite
 - `src/threatweave/mcp_server.py` — optional MCP tool surface
 - `dashboard/app.py` — Streamlit demonstration
 - `src/threatweave/analytics.py` — optional DuckDB and Parquet reporting
@@ -159,6 +162,23 @@ see [Windows laptop setup and documented API best practices](docs/TENANT_PREFLIG
 The Tenable cloud VM account is not the same product or credential set as
 on-prem Security Center or Cloud Security GraphQL. Live connection was not
 validated in the ChatGPT execution environment.
+
+## OWASP Top 10 for LLM & Agentic AI Architecture
+
+ThreatWeave AI implements programmatic guardrails and defense-in-depth architecture aligned with both the **OWASP Top 10 for LLM Applications** and **OWASP Top 10 for Agentic AI Applications (ASI)**:
+
+- **Excessive Agency Mitigation (LLM06, ASI01)**: Strictly read-only tool surface (`get_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`). No remediation, patching, or ticketing tools. Policy proposals require human review (`approved: False`).
+- **Prompt Injection & Untrusted Data Isolation (LLM01, ASI02)**: Ingested scanner output and external strings are delimited as untrusted data; heuristic injection payloads are sanitized.
+- **Sensitive Credential Scrubber (LLM02, ASI07)**: Automated regex redaction of Anthropic keys, Tenable keys, Bearer tokens, passwords, and private keys.
+- **Deterministic Decisions & Traceability (LLM09, ASI08)**: Risk scores are computed exclusively by the deterministic ContextIQ engine, not by LLM hallucination. Decision Receipts provide cryptographic audit trails.
+- **Consumption Limits (LLM10, ASI09)**: Tool calls and turn iterations capped at 5; tool payloads capped at 16,000 characters with explicit JSON `TRUNCATED` signaling.
+
+Run the compliance check via:
+```bash
+threatweave --db runtime/threatweave.db check-owasp
+```
+
+See [docs/OWASP_AGENT_BEST_PRACTICES.md](docs/OWASP_AGENT_BEST_PRACTICES.md) for the full architecture specification and control matrix.
 
 ## Security, privacy, eligibility
 
