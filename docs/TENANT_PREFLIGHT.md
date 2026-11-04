@@ -1,8 +1,8 @@
 # Authorized Tenable Partner Lab preflight
 
-**Do not commit or upload credentials.** A prior screenshot included an account password and API keys. Ask the tenant administrator to revoke/rotate those credentials before use. The repository intentionally does not contain their values.
+**Credential safety:** Never commit credentials, access keys, passwords, or tenant exports. Use approved credentials supplied locally through environment variables or a secrets manager. Follow your organization's credential lifecycle and rotation procedures.
 
-The expected tenant base URL is `https://cloud.tenable.com`. Configure the **newly rotated** API access and secret keys as environment variables **locally** (or with your approved secrets manager). Do not paste secrets into shell commands that are captured by logs, screenshots, recorded demos, or GitHub Actions.
+The expected tenant base URL is `https://cloud.tenable.com`. Configure the API access and secret keys as environment variables **locally** (or with your approved secrets manager). Do not paste secrets into shell commands that are captured by logs, screenshots, recorded demos, or GitHub Actions.
 
 From the repository root, after `python -m pip install -e .`, run:
 
@@ -32,7 +32,6 @@ References: https://developer.tenable.com/reference/assets-list-assets , https:/
 
 ## Windows laptop: safe connection smoke test
 
-The keys shown in the emailed screenshots are **exposed**. Revoke/rotate them first.
 This Tenant VM lab uses `https://cloud.tenable.com`; it is **not** a
 Security Center server. Do not send Tenable VM keys to `/rest/analysis` or
 use them as Cloud Security GraphQL keys. Cloud Security credentials require a
@@ -41,14 +40,14 @@ separate provisioned key if that product is in scope.
 Open **PowerShell** in a trusted local checkout (not a cloud terminal) and run:
 
 ```powershell
-git switch review/steps-1-5-evidence-foundations
-git pull --ff-only
+git switch main
+git pull --ff-only origin main
 py -3.11 -m pip install -e '.[dev]'
 py -3.11 -m pytest -q
 
 # Hidden prompts: do NOT paste secrets in the chat, GitHub, or scripts.
-$ak = Read-Host 'Rotated Tenable VM access key' -AsSecureString
-$sk = Read-Host 'Rotated Tenable VM secret key' -AsSecureString
+$ak = Read-Host 'Tenable VM access key' -AsSecureString
+$sk = Read-Host 'Tenable VM secret key' -AsSecureString
 $env:TENABLE_ACCESS_KEY = [System.Net.NetworkCredential]::new('', $ak).Password
 $env:TENABLE_SECRET_KEY = [System.Net.NetworkCredential]::new('', $sk).Password
 $env:TENABLE_BASE_URL = 'https://cloud.tenable.com'
