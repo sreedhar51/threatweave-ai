@@ -49,6 +49,38 @@ The optional `propose-correlations` feature first finds active vulnerabilities a
 
 Proposals are **drafts only**: the feature does not edit the rule file, rerun correlation, or change a score. A qualified human may independently review the finding evidence, validate the relationship, add an approved rule to the local rules file and rerun correlation. Model-powered requests send bounded, scrubbed evidence to the configured provider; use authorized data only. A decision brief is another advisory feature and does not apply correlation rules.
 
+## Opt-in finding-specific AI assessment
+
+The optional assessment examines one analyst-selected active vulnerability and failed compliance finding on the same asset. It is separate from deterministic correlation and the grouped Claude rule-proposal workflow. The CLI flag and UI checkbox are **per-request opt-ins**, not a persistent global feature flag. They default to off; opting in sends bounded, scrubbed evidence to Anthropic and may incur API charges. Use only data authorized for the configured provider.
+
+### Run from CLI or Streamlit
+
+Install `.[agent]`, configure `ANTHROPIC_API_KEY` in the process environment, and use a model that supports the configured structured-output request. Select the two **finding IDs**, not plugin IDs or an asset UUID, from Asset 360 or source evidence. Both findings must be in the selected database and share the same authoritative asset ID.
+
+```bash
+threatweave --db runtime/demo.db assess-correlation \
+  --vulnerability-id VULNERABILITY_FINDING_ID \
+  --compliance-id COMPLIANCE_FINDING_ID \
+  --ai-correlation-analysis
+```
+
+In Windows PowerShell, run the same arguments on one line with `.\.venv\Scripts\python.exe -m threatweave.cli` in place of `threatweave`. In Streamlit, select the intended DataBridge source, then open **Policy & Investigation → Optional: AI finding-pair assessment (advisory only)**. Check **Enable AI correlation analysis for this request**, enter both finding IDs and click **Assess finding pair with Claude**. The button is disabled until checked. Streamlit must be restarted from a shell containing the API key if the key was set after it started.
+
+### Inputs and decisions
+
+The assessment opens the local SQLite database read-only, fetches the two selected findings and up to 20 existing rule links for that exact pair, and validates kinds, asset identity, and active/failed status before a model request. The bounded packet includes stored finding fields such as titles, IDs, source hashes and excerpts, vulnerability metadata, compliance values and timestamps, plus existing link rule IDs and rationales. It may contain sensitive tenant evidence: scrubbing reduces credential exposure but does not anonymize or guarantee removal of all sensitive content. The packet does not add network topology or identity permissions. Missing original status may have been normalized to `OPEN` or `FAIL`; review source evidence rather than assuming the original status was present. A software-family value may be inferred rather than directly observed.
+
+The model is asked for `DIRECT_RELATIONSHIP_SUPPORTED`, `CONDITIONALLY_RELATED`, `UNRELATED`, or `INSUFFICIENT_EVIDENCE`, with an explanation, cited finding IDs, missing prerequisites, contradicting evidence and validation steps. `DIRECT_RELATIONSHIP_SUPPORTED` is the model's advisory assessment, not independent validation of the relationship. The model is instructed not to infer exploitability, reachability, lateral movement or an attack path; the program sets `attack_path_status` to `NOT_ESTABLISHED`.
+
+### Review result and limitations
+
+- `accepted` means the result passed the application's field and citation checks. A related or conditional result must cite both supplied findings. The program does not check that every claim is factually correct or that a citation supports each claim; an analyst must verify the evidence and conclusion.
+- `rejected` means the returned assessment failed local validation. Other possible statuses include `skipped_injection`, `truncated_evidence`, `refused`, `truncated`, and `invalid_json`. Injection-flagged or oversized packets are not sent to Claude. API and input errors are reported separately.
+- Results include finding IDs, the requested and, where returned, served model, evidence digest, source hashes and assessment schema version. These aid traceability but do not by themselves preserve the evidence packet or establish a fully reproducible model response.
+- This is a single-pair, advisory operation. It does not create or remove correlation links, write to the database, change a rule, score or receipt, or establish lateral movement. Human review is required even for `DIRECT_RELATIONSHIP_SUPPORTED`.
+
+Source: [`correlation_assessment.py`](../src/threatweave/correlation_assessment.py), [`cli.py`](../src/threatweave/cli.py), and [`app.py`](../dashboard/app.py).
+
 ## Limitations and traceability
 
 - No cross-host topology, network reachability, exploitability, or confirmed remediation is established by a same-asset link.
@@ -56,14 +88,3 @@ Proposals are **drafts only**: the feature does not edit the rule file, rerun co
 - Ranking is deterministic for the same evidence and policy. A fix-group score uses the maximum member finding score; groups are candidate work scopes, not guarantees of a single patch.
 - Source: [`correlate.py`](../src/threatweave/correlate.py), [`ingest.py`](../src/threatweave/ingest.py), [`engine.py`](../src/threatweave/engine.py), [`correlation_proposals.py`](../src/threatweave/correlation_proposals.py), and [`policy.py`](../src/threatweave/policy.py).
 
-## Opt-in finding-specific AI assessment
-
-Use the `assess-correlation` command for one selected active vulnerability and failed compliance finding on the same asset. The command requires an explicit per-request `--ai-correlation-analysis` flag, and sends bounded, scrubbed finding evidence to Claude. It is separate from correlation proposals and deterministic ranking. Select the IDs from Asset 360 or source evidence:
-
-```bash
-threatweave --db runtime/demo.db assess-correlation --vulnerability-id VULNERABILITY_FINDING_ID --compliance-id COMPLIANCE_FINDING_ID --ai-correlation-analysis
-```
-
-Alternatively, open **Policy & Investigation → Optional: AI finding-pair assessment (advisory only)**, opt in using the checkbox, enter both finding IDs and click **Assess finding pair with Claude**. The IDs are finding IDs, not plugin IDs or asset UUIDs. This feature requires the `agent` extra, configured `ANTHROPIC_API_KEY`, network connectivity and an accessible model supporting structured outputs.
-
-The assessment returns related, conditional, unrelated or insufficient-evidence categories, citations, missing prerequisites, contradictions and validation steps. It validates that cited IDs were supplied, and a related assessment must cite both findings. It does not validate that each assertion is true or that citations support each claim; human review remains necessary. Injection-flagged or oversized evidence is not sent. This is a single-pair operation, not a batch or path analysis. It does not write a link, policy, score, or receipt and does not infer lateral movement. Missing normalized status may have been defaulted; the original evidence must be checked. No network topology or identity permissions are inferred.
