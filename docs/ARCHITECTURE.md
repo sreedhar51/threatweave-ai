@@ -33,6 +33,8 @@ Tenable VM async API (assets/vulnerabilities/optional compliance)
    MCP tools / optional Claude / Streamlit
 ```
 
+The [correlation logic guide](CORRELATION_LOGIC.md) describes the rule predicates, ContextIQ flow, and Claude proposal boundary.
+
 ## Security/identity invariants
 
 1. Tenable asset UUID is authoritative within the Tenable dataset.
@@ -62,7 +64,7 @@ The group view exposes distinct affected assets, server/workstation split, produ
 - JSON array files are read into memory; prefer JSONL for large inputs.
 - SQLite is the portable primary store; DuckDB/Parquet is optional. No proven 250k-asset benchmark.
 - CMDB import is file-only. No ServiceNow Table API connector or CMDB service graph traversal yet.
-- `software_family` needs explicit input or a validated enrichment mapping; it is not inferred from arbitrary plugin names.
+- `software_family` can be supplied explicitly or inferred by ordered CPE, solution-text, plugin-name, and port heuristics. Inferred labels are hints and require validation; a match does not prove installed software.
 - The CIS correlation mapping is a tiny synthetic demonstration set. It must not be presented as production-approved CIS mappings.
 - Actual Tenable Solutions API entities are not ingested; only candidate grouping by plugin solution text / plugin ID exists.
 - No audit-file parser, baseline migration, OPA execution, OSCAL mapping, or historical drift engine.
