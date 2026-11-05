@@ -24,8 +24,9 @@ ThreatWeave AI enforces separation of concerns across decoupled layers:
                                    |
                                    v
 +-----------------------------------------------------------------------------------+
-| 2. Cognitive Agent Layer (Optional Claude Sonnet)                                 |
-|    - Role: Natural language query interpretation & draft policy proposal          |
+| 2. Cognitive Agent Layer (Optional Claude; default `claude-opus-5-5`)             |
+|    - Role: answer questions (`ask`), decision briefs (`brief`), correlation       |
+|      proposals (`propose-correlations`), draft policy rules (`draft-rule`)        |
 |    - Constraint: STRICTLY NON-AUTHORITATIVE. Cannot score risk, execute code,     |
 |      mutate state, or bypass human review.                                        |
 +-----------------------------------------------------------------------------------+
@@ -34,7 +35,12 @@ ThreatWeave AI enforces separation of concerns across decoupled layers:
 +-----------------------------------------------------------------------------------+
 | 3. Tool Surface & OWASP Guardrails (`owasp_guardrails.py`)                        |
 |    - Read-only allowlist: `get_overview`, `list_fix_groups`, `get_asset_exposure`,|
-|      `get_group_evidence` (rejected before dispatch if unpermitted)              |
+|      `get_group_evidence` (rejected before dispatch if unpermitted)               |
+|    - MCP server (Claude Code / Claude Desktop): six read-only tools,              |
+|      `get_security_overview`, `list_fix_groups`, `get_asset_exposure`,            |
+|      `get_group_evidence`, `evaluate_policy_dry_run`,                             |
+|      `compare_decision_receipts`; the Claude Code subagent may call only          |
+|      these (no file, shell or web tools)                                          |
 |    - Automated secret scrubber: redacts API keys, basic auth, tokens, passwords   |
 |    - Evidence wrapper: wraps all results with untrusted security context          |
 |    - Detection flag: scans evidence text for heuristic injection patterns         |
@@ -78,7 +84,7 @@ Autonomous and semi-autonomous AI agents face unique structural vulnerabilities 
 | Official OWASP Top 10 for Agentic Applications (Dec 2025)                              |
 +----------------------------------------------------------------------------------------+
 | ASI01: Agent Goal Hijack              --> Structural isolation; evidence wrapped untrusted
-| ASI02: Tool Misuse and Exploitation   --> Strict 4-tool allowlist; unknown tools rejected
+| ASI02: Tool Misuse and Exploitation   --> 4-tool agent allowlist; 6 read-only MCP tools
 | ASI03: Identity and Privilege Abuse   --> Tenable UUID identity; IP join prohibition   |
 | ASI04: Agentic Supply Chain Vulns     --> Minimal dependencies; no dynamic model loading
 | ASI05: Unexpected Code Execution      --> Zero exec/eval; strict schema validation     |
@@ -102,6 +108,8 @@ Autonomous and semi-autonomous AI agents face unique structural vulnerabilities 
 - **ThreatWeave Defense**:
   - Fixed, hardcoded allowlist (`ALLOWED_AGENT_TOOLS`: `get_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`).
   - Tool calls not present in `ALLOWED_AGENT_TOOLS` are **rejected before dispatch**.
+  - The MCP server exposes six read-only tools: `get_security_overview`, `list_fix_groups`, `get_asset_exposure`, `get_group_evidence`, `evaluate_policy_dry_run` (previews a policy without activating it) and `compare_decision_receipts`. The Claude Code subagent (`.claude/agents/threatweave.md`) may call only these six; `Read`, `Grep`, `Glob`, `Bash`, `Write`, `Edit`, `NotebookEdit`, `WebFetch` and `WebSearch` are disallowed.
+  - The decision-brief and correlation-proposal layers make single structured-output calls with no tools; their outputs are schema-checked and every cited finding ID must exist in the evidence Claude was given.
   - MCP server restricts receipt paths strictly to configured receipt storage, blocking directory traversal.
 
 ### ASI03: Identity and Privilege Abuse
