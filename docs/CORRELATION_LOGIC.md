@@ -55,3 +55,15 @@ Proposals are **drafts only**: the feature does not edit the rule file, rerun co
 - CMDB enrichment needs an explicitly verified asset mapping. Asset inventory fields and tags can also inform context, so verify their provenance separately; not all context is CMDB-verified.
 - Ranking is deterministic for the same evidence and policy. A fix-group score uses the maximum member finding score; groups are candidate work scopes, not guarantees of a single patch.
 - Source: [`correlate.py`](../src/threatweave/correlate.py), [`ingest.py`](../src/threatweave/ingest.py), [`engine.py`](../src/threatweave/engine.py), [`correlation_proposals.py`](../src/threatweave/correlation_proposals.py), and [`policy.py`](../src/threatweave/policy.py).
+
+## Opt-in finding-specific AI assessment
+
+Use the `assess-correlation` command for one selected active vulnerability and failed compliance finding on the same asset. The command requires an explicit per-request `--ai-correlation-analysis` flag, and sends bounded, scrubbed finding evidence to Claude. It is separate from correlation proposals and deterministic ranking. Select the IDs from Asset 360 or source evidence:
+
+```bash
+threatweave --db runtime/demo.db assess-correlation --vulnerability-id VULNERABILITY_FINDING_ID --compliance-id COMPLIANCE_FINDING_ID --ai-correlation-analysis
+```
+
+Alternatively, open **Policy & Investigation → Optional: AI finding-pair assessment (advisory only)**, opt in using the checkbox, enter both finding IDs and click **Assess finding pair with Claude**. The IDs are finding IDs, not plugin IDs or asset UUIDs. This feature requires the `agent` extra, configured `ANTHROPIC_API_KEY`, network connectivity and an accessible model supporting structured outputs.
+
+The assessment returns related, conditional, unrelated or insufficient-evidence categories, citations, missing prerequisites, contradictions and validation steps. It validates that cited IDs were supplied, and a related assessment must cite both findings. It does not validate that each assertion is true or that citations support each claim; human review remains necessary. Injection-flagged or oversized evidence is not sent. This is a single-pair operation, not a batch or path analysis. It does not write a link, policy, score, or receipt and does not infer lateral movement. Missing normalized status may have been defaulted; the original evidence must be checked. No network topology or identity permissions are inferred.
