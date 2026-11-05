@@ -61,6 +61,12 @@ def main(argv=None):
     sub.add_argument('--model',help='Claude model ID (default: THREATWEAVE_CLAUDE_MODEL or claude-opus-5-5)')
     sub.add_argument('--effort',choices=['low','medium','high','xhigh','max'],help='Claude effort level (default: high)')
     sub.add_argument('--out',help='Also write the proposals as JSON to this path')
+    sub=commands.add_parser('assess-correlation',help='Assess one same-asset finding pair with Claude (advisory only)')
+    sub.add_argument('--vulnerability-id',required=True)
+    sub.add_argument('--compliance-id',required=True)
+    sub.add_argument('--ai-correlation-analysis',action='store_true',help='Explicitly opt in to sending bounded evidence to Claude')
+    sub.add_argument('--model',help='Claude model ID')
+    sub.add_argument('--effort',choices=['low','medium','high','xhigh','max'])
     sub=commands.add_parser('receipt',help='Generate deterministic ranking receipt')
     sub.add_argument('--policy',default=str(ROOT/'policies/default.yaml'))
     sub.add_argument('--out',default='runtime/receipts/receipt.json')
@@ -94,14 +100,17 @@ def main(argv=None):
             store.close()
         print(json.dumps(result, indent=2))
         return 1 if result.get('verdict') != 'PASS' else 0
-    elif args.command in ('ask','draft-rule','brief','propose-correlations'):
+    elif args.command in ('ask','draft-rule','brief','propose-correlations','assess-correlation'):
         import sys
         from .agent import ClaudeUnavailable, run_investigation, draft_rule
         if args.command!='draft-rule' and not Path(args.db).is_file():
             print(json.dumps({'error': f"Database file does not exist: {args.db}"}, indent=2), file=sys.stderr)
             return 1
         try:
-            if args.command=='ask':
+            if args.command=='assess-correlation':
+                from .correlation_assessment import assess_pair
+                result=assess_pair(args.db,args.vulnerability_id,args.compliance_id,enabled=args.ai_correlation_analysis,model=args.model,effort=args.effort)
+            elif args.command=='ask':
                 result=run_investigation(args.question,args.db,args.policy,model=args.model,effort=args.effort)
             elif args.command=='brief':
                 from .briefs import generate_briefs
@@ -124,7 +133,7 @@ def main(argv=None):
             out.parent.mkdir(parents=True,exist_ok=True)
             out.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
         print(json.dumps(result,indent=2))
-        return 0 if result.get('status','completed')=='completed' else 3
+        return 0 if result.get('status','completed') in ('completed','accepted') else 3
     else:
         store=Store(args.db)
         try:
