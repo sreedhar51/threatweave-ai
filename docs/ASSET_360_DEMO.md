@@ -2,6 +2,8 @@
 
 ## Purpose
 
+See the [correlation logic guide](CORRELATION_LOGIC.md) for the complete matching and review flow.
+
 **Start with the asset, not the finding.** ThreatWeave joins vulnerability findings, CIS compliance outcomes, rule-qualified vulnerability/CIS relationships and human-verified CMDB context under one **authoritative Tenable asset UUID**. Hostname is used for search and display only, and neither hostname nor IP address is ever used to merge two asset identities.
 
 This is an **asset investigation view**, not a cross-host attack-path engine or a claim of proven exploitability. All demo records are fictional.
@@ -65,7 +67,7 @@ control-title matchers may require expert validation before operational use.
 ## Data and safety boundaries
 
 - The **Asset 360 dossier** uses `src/threatweave/ui_workflows.py:asset_360()` and the existing `get_asset_exposure()` evaluator. It does not invent new correlations or risk scores.
-- Correlation is only established by the repository's reviewed `policies/correlation-rules.yaml` relationships on the **same UUID**; mere co-location is not sufficient.
+- Correlation is only established by the configured `policies/correlation-rules.yaml` relationships (demonstration mappings requiring validation) on the **same UUID**; mere co-location is not sufficient.
 - `criticality`, `environment`, `role` and external exposure are shown only as stored attributes. Policy enrichment relies on approved CMDB identities; absent/unknown data remains unknown.
 - The summary metrics count **all stored** vulnerability and CIS records for that UUID. Detailed rows are intentionally bounded to 200 per selection for UI responsiveness. When truncated, the page explicitly warns that not every individual finding is shown; this is not a complete export.
 - A hostname collision displays a warning rather than merging evidence.
