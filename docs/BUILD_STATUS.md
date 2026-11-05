@@ -1,7 +1,7 @@
 # ThreatWeave AI — build and verification status
 
-**Updated:** 2026-11-04  
-**Primary source:** `main` at `5e4771cc22594e3c0c562a8d6a00c713b984d863`  
+**Updated:** 2026-11-05  
+**Primary source:** `main` at `11be0f1c4216d362075de21a4dde970a6ed6709f`  
 **Purpose:** current implementation status and remaining verification gates. Earlier milestone counts and pre-merge notes are superseded; Git history and past PRs retain their details.
 
 ## Current release snapshot
@@ -16,16 +16,16 @@
 | Fix Groups | **Implemented as candidates** | Grouping identifies potential remediation work; it does not certify a single patch, fix applicability or reduced risk. |
 | Decision Receipts and Replay | **Implemented** | Evidence/policy fingerprints, source references, reproducible priority results, and before/after differences. |
 | Streamlit dashboard | **Implemented; automated checks passed** | Isolated tenant/synthetic/staged modes, evidence coverage, policy review, group investigation and replay. Manual browser/demo validation on the presentation machine remains a separate step. |
-| Guided/Claude agent and MCP | **Implemented; optional** | Bounded read-only evidence tools and human-gated policy drafts. Claude requires separately configured credentials; validate actual Claude/MCP client interoperability before demonstrating it. |
+| Guided/Claude agent and MCP | **Implemented; optional** | Claude layers (`ask`, `brief`, `propose-correlations`, `draft-rule`) default to `claude-opus-5-5`; the `ask` agent uses a 4-tool read-only allowlist. The MCP server exposes six read-only tools, and the Claude Code subagent can call only those. Bounded evidence and human-gated drafts. Claude requires separately configured credentials; validate actual Claude/MCP client interoperability before demonstrating it. |
 | OWASP-aligned safeguards | **Implemented with regression coverage** | Untrusted evidence boundaries, redaction, bounded tools/outputs and policy draft validation; no claim of formal OWASP certification or a comprehensive external audit. |
-| Exchange listing | **Prepared in contributor fork** | `sreedhar51/cyberagents-exchange` branch `add-threatweave-ai`, file `agents/threatweave-ai.md`. Preparation is **not** Tenable approval or public Exchange listing. |
+| Exchange listing | **Submitted; baseline review passed** | `agents/threatweave-ai.md` submitted as tenable/cyberagents-exchange#228. Reviewer 1 approved the Contributed-tier baseline review; a second review is pending. This is **not** yet a merged or public Exchange listing. |
 
 ## Automated verification — latest confirmed main
 
-- GitHub Actions for `5e4771cc22594e3c0c562a8d6a00c713b984d863`: **137 tests passed** on Python **3.11 and 3.12** in the `Offline regression tests` workflow.
+- GitHub Actions for `11be0f1c4216d362075de21a4dde970a6ed6709f`: **155 tests passed** on Python **3.11 and 3.12** in the `Offline regression tests` workflow.
 - CI also completed the deterministic **three-run repeatability/evidence provenance** gate and the synthetic CLI demo smoke test successfully for both Python versions.
 - GitHub Actions CodeQL checks were reported successful for this `main` revision. **CodeQL is not a Git-history credential scan.**
-- Reference workflows: [offline tests](https://github.com/sreedhar51/threatweave-ai/actions/runs/41785166595) and [main workflow runs](https://github.com/sreedhar51/threatweave-ai/actions).
+- Reference workflows: [offline tests](https://github.com/sreedhar51/threatweave-ai/actions/runs/41928005674) and [main workflow runs](https://github.com/sreedhar51/threatweave-ai/actions).
 - CI checks are repository-level automated evidence, not a guarantee of successful authenticated operation in a particular vendor tenant or a measured production throughput.
 
 ## Authorized partner-lab evidence — operator reported
@@ -45,7 +45,7 @@ The contributor's local Gitleaks history scan reported **5 `generic-api-key` mat
 
 ## GitHub integration / roadmap status
 
-| Workstream | Status on 2026-11-04 |
+| Workstream | Status on 2026-11-05 |
 | --- | --- |
 | PR #1 — baseline evidence architecture | Merged |
 | PR #3 — security/OWASP guardrails | Merged |
@@ -54,6 +54,12 @@ The contributor's local Gitleaks history scan reported **5 `generic-api-key` mat
 | PR #7 — architecture diagram and UI/guardrail refinements | Merged |
 | PR #8 — Exchange listing draft rewrite | Merged |
 | PR #9 — Claude decision briefs and correlation proposals | **Merged** |
+| PR #10, #11 — Gitleaks review, build status and Exchange listing updates | Merged |
+| PR #12 — enterprise contextual-prioritization demo | Merged |
+| PR #13, #16, #18 — fixture hygiene, reviewed Gitleaks ignores, security wording | Merged |
+| PR #14, #15 — Asset 360 view and asset-owner remediation queue | Merged |
+| PR #17 — dashboard tenant database selection fix | Merged |
+| PR #19 — Claude Code MCP setup fixes from Tenable review | Merged |
 
 The PR #9 decision-brief and correlation-proposal additions are now part of `main`; maintain human approval boundaries and treat any proposals as unverified until reviewed. Branch-specific work and historical snapshots are not the release baseline.
 
@@ -63,7 +69,7 @@ The PR #9 decision-brief and correlation-proposal additions are now part of `mai
 - **Data truth:** Unknown/missing evidence must remain unknown. Preserve source severity/VPR. Group priority scores may tie; deterministic tie-breaks are not independently calibrated risk probabilities.
 - **Read-only behavior:** No initiated scans, patches, tickets, security-control changes or vendor write-back. Security Center's read-only analysis may use an HTTP POST request, but it does not modify source findings.
 - **Not yet externally proven:** Cross-host exploit paths, full remediation verification, 250K-asset production capacity, live ServiceNow API, full Security Center tenant validation, customer time-savings estimates, and comprehensive interactive Claude/MCP interoperability.
-- **Exchange review:** The contributed listing is submitted separately to `tenable/cyberagents-exchange`; reviewer approval and any independently requested checks remain external to this repository. Rehearse the end-to-end demo on the presentation machine.
+- **Exchange review:** The contributed listing is tenable/cyberagents-exchange#228. Baseline review passed; the second review and merge remain external to this repository. Rehearse the end-to-end demo on the presentation machine.
 
 ## Reproduce the baseline locally
 
