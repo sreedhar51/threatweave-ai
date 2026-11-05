@@ -581,6 +581,20 @@ with tab_policy:
                 except Exception as exc:
                     from threatweave.agent import ClaudeUnavailable
                     st.error('Briefs unavailable: '+(str(exc) if isinstance(exc,ClaudeUnavailable) else type(exc).__name__))
+        with st.expander('Optional: AI finding-pair assessment (advisory only)'):
+            st.caption('Explicit opt-in sends bounded finding evidence to Claude. No correlation, policy or score is changed; human review is required.')
+            enabled=st.checkbox('Enable AI correlation analysis for this request',value=False,key='ai_pair_enabled')
+            vulnerability_id=st.text_input('Vulnerability finding ID',key='ai_pair_vulnerability')
+            compliance_id=st.text_input('Failed compliance finding ID',key='ai_pair_compliance')
+            if st.button('Assess finding pair with Claude',disabled=not enabled,key='ai_pair_assess'):
+                try:
+                    from threatweave.correlation_assessment import assess_pair
+                    result=assess_pair(DB,vulnerability_id,compliance_id,enabled=enabled)
+                    st.caption('Advisory only; a valid citation does not establish factual correctness or an attack path.')
+                    st.json(result)
+                except Exception as exc:
+                    from threatweave.agent import ClaudeUnavailable
+                    st.error('Assessment unavailable: '+(str(exc) if isinstance(exc,(ClaudeUnavailable,ValueError)) else type(exc).__name__))
         with st.expander('Optional: Claude correlation proposals (drafts only)'):
             st.caption('Claude reviews same-asset vulnerability and CIS-failure pairs that no rule links yet. '
                        'Proposed rules are never applied; add approved ones to the rules file yourself.')
