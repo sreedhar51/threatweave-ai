@@ -19,7 +19,7 @@
 
 - Required: `asset_uuid`, `compliance_full_id` (or `control_id`), `audit_file`.
 - Optional: `title`, `status`, `expected_value`, `actual_value`, `observed_at`.
-- A record with `FAIL` or `FAILED` can be considered for a *relevant* correlation rule; `WARNING` or `ERROR` are not converted into FAIL.
+- A record with `FAIL`, `FAILED`, or `NON_COMPLIANT` can be considered for a *relevant* correlation rule; `WARNING` or `ERROR` are not converted into FAIL.
 - Synthetic `CIS-REMOTE-ADMIN` identifiers in examples are illustrative, **not authentic licensed CIS control references**.
 
 ### CMDB fields (generic ServiceNow export)
@@ -44,6 +44,9 @@ Organizations should derive `mapping_verified` from an approved CMDB-Tenable ide
 A provider must deliver normalized `asset`/`vulnerability`/`compliance`/`cmdb` records with stable source IDs, observation timestamps, source hashes, explicit matching evidence, and source licensing metadata where applicable. API connectors should be read-only by default. ServiceNow Table API, CrowdStrike, SentinelOne, and Wiz are **extension points, not implemented integrations**.
 
 ## Correlation rule governance
+
+See the [correlation logic guide](CORRELATION_LOGIC.md) for exact matching conditions, classifier limitations, policy effects, and Claude proposal review.
+
 
 `policies/correlation-rules.yaml` is a deterministic demonstration mapping. Production mappings must be validated by security specialists against accurate CIS checks, affected technology, vulnerability applicability, and mitigating-control semantics. A same-asset link yields a **candidate compounded exposure**, not a verified attack path.
 
