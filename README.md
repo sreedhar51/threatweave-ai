@@ -149,18 +149,19 @@ the code checks everything it returns:
 |---|---|---|---|
 | **Decide** | `brief` | Recommends the next human action for each top fix group | Fixed output schema; every cited finding ID must be in that group's evidence; `INVESTIGATE_NOW` and `SCHEDULE` must cite evidence; ranks and scores are copied from the receipt, never changed |
 | **Correlate** | `propose-correlations` | Judges whether an unlinked same-asset pair is a real security relationship | Only pairs found by the engine can be proposed; pairs whose evidence looks like prompt injection are skipped without calling Claude; a link must cite one vulnerability and one compliance finding; drafts pass the engine's rule validation; the rules file is never written |
+| **Assess a pair** | `assess-correlation --ai-correlation-analysis` | Reviews one selected same-asset vulnerability and failed compliance finding | Explicit opt-in; bounded evidence; related assessments cite both supplied finding IDs; advisory only, with no score or rule changes |
 | **Investigate** | `ask` | Answers questions using four read-only evidence tools | Strict tool schemas, input validation, 5-turn and 5-tool budgets, untrusted-evidence wrapping |
 | **Policy** | `draft-rule` | Turns a plain-English request into a policy rule | Fixed output schema plus the policy validator; always `approved: false` |
 
-All four use `claude-opus-5-5` by default, with an automatic fallback model when
+These Claude features use `claude-opus-5-5` by default, with an automatic fallback model when
 Claude declines a request. Evidence that looks like a prompt-injection attempt is
 flagged in the output for the reviewer. For correlation proposals, which could become
 permanent rules, such pairings are not sent to Claude at all.
 
 ## Use it with Claude
 
-ThreatWeave works with Claude in four ways. All of them use the same read-only
-evidence tools; none can patch, scan, open tickets, or change anything in Tenable.
+ThreatWeave offers several Claude-assisted workflows over read-only evidence. They
+do not patch, scan, open tickets, or change anything in Tenable.
 
 ### From the command line (Claude API)
 
@@ -187,11 +188,41 @@ threatweave draft-rule "Raise priority for internet-exposed production assets"
 `--out` also writes the JSON to a file. Exit codes: `0` completed, `1` bad input,
 `2` Claude unavailable, `3` the run did not fully complete.
 
+### Assess one vulnerability and compliance pair (Claude API)
+
+Choose an **active vulnerability finding ID** and a **failed compliance finding ID**
+for the same asset from Asset 360 or the underlying finding evidence. These are
+ThreatWeave finding IDs, not plugin IDs or the asset UUID. After installing the
+`agent` extra and setting `ANTHROPIC_API_KEY` in your shell, run:
+
+```bash
+threatweave --db runtime/demo.db assess-correlation \
+  --vulnerability-id VULNERABILITY_FINDING_ID \
+  --compliance-id COMPLIANCE_FINDING_ID \
+  --ai-correlation-analysis
+```
+
+Windows PowerShell, from the repository root (replace both placeholders):
+
+```powershell
+.\.venv\Scripts\python.exe -m threatweave.cli --db runtime/demo.db assess-correlation --vulnerability-id VULNERABILITY_FINDING_ID --compliance-id COMPLIANCE_FINDING_ID --ai-correlation-analysis
+```
+
+The flag explicitly opts in for this request and sends bounded, scrubbed finding
+evidence to Anthropic. The result is **advisory**, requires human review, and
+never modifies correlation links, policies, scores, or receipts. `accepted` means
+response and citation checks passed, not that the relationship is correct. The
+assessment does not establish exploitability, reachability, or lateral movement.
+Use only data authorized for the configured model provider. See the
+[correlation logic guide](docs/CORRELATION_LOGIC.md#opt-in-finding-specific-ai-assessment)
+for limitations and the Streamlit option.
+
 ### Dashboard (Claude API)
 
 With `ANTHROPIC_API_KEY` set, the **Policy & Investigation** tab can generate decision
 briefs, review unlinked correlation pairings, ask Claude to investigate bounded
-evidence, or draft a policy rule. Drafts go to the YAML editor as unapproved proposals.
+evidence, assess a selected same-asset finding pair after explicitly opting in, or
+draft a policy rule. Drafts go to the YAML editor as unapproved proposals.
 
 ### Claude Code (agent and MCP server)
 
@@ -268,7 +299,7 @@ variable is optional.
 
 | Variable | Used for | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Claude features (`brief`, `propose-correlations`, `ask`, `draft-rule`, dashboard) | none (Claude features off) |
+| `ANTHROPIC_API_KEY` | Claude features (`brief`, `propose-correlations`, `assess-correlation`, `ask`, `draft-rule`, dashboard) | none (Claude features off) |
 | `THREATWEAVE_CLAUDE_MODEL` | Claude model ID | `claude-opus-5-5` |
 | `THREATWEAVE_CLAUDE_EFFORT` | Claude effort level: `low`, `medium`, `high`, `xhigh`, `max` | `high` |
 | `THREATWEAVE_CLAUDE_FALLBACKS` | `off` disables automatic fallback when Claude declines a request | on, for models that support it |
@@ -348,7 +379,7 @@ ThreatWeave makes no network calls unless you configure one of these:
 |---|---|---|
 | `cloud.tenable.com` (or `TENABLE_BASE_URL`) | `tenable-export`, `tenant_preflight.py` | Read-only export and status requests |
 | Your Security Center URL | `securitycenter-export` | Read-only analysis queries |
-| `api.anthropic.com` | `brief`, `propose-correlations`, `ask`, `draft-rule`, or the dashboard's Claude buttons, with `ANTHROPIC_API_KEY` set | Your question or request, the engine's group summary, and bounded evidence: hostnames, finding titles and excerpts, control IDs, and CMDB context, with credentials scrubbed |
+| `api.anthropic.com` | `brief`, `propose-correlations`, `assess-correlation`, `ask`, `draft-rule`, or the dashboard's Claude buttons, with `ANTHROPIC_API_KEY` set | Your question or request, the engine's group summary, and bounded evidence: hostnames, finding titles and excerpts, control IDs, and CMDB context, with credentials scrubbed |
 
 Setting `ANTHROPIC_API_KEY` is the opt-in for sending evidence to Claude. The offline
 demo, `investigate`, the MCP server itself, and `check-owasp` send nothing off the
