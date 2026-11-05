@@ -38,3 +38,25 @@ streamlit run dashboard/app.py
 ## Pitch closing
 
 > “Tenable identifies the security findings. ThreatWeave correlates the context, applies your organization's written policy, and gives you the receipt to prove why every remediation decision changed.”
+
+## Optional: assess a finding pair with Claude
+
+With `.[agent]` installed and `ANTHROPIC_API_KEY` set, select an active
+vulnerability finding ID and failed compliance finding ID from the **same asset**
+in Asset 360, then substitute those IDs in the command below. The flag opts in
+to sending bounded, scrubbed evidence to Anthropic. Use authorized data only.
+
+```bash
+threatweave --db runtime/demo.db assess-correlation \
+  --vulnerability-id VULNERABILITY_FINDING_ID \
+  --compliance-id COMPLIANCE_FINDING_ID \
+  --ai-correlation-analysis
+```
+
+On Windows PowerShell, run the same arguments on one line with
+`.\.venv\Scripts\python.exe -m threatweave.cli` in place of `threatweave`.
+Alternatively, in **Policy & Investigation**, expand **Optional: AI finding-pair
+assessment (advisory only)**, opt in and enter the same IDs. `accepted` means
+output and citation checks passed, not that the relationship is verified. The
+assessment does not create a correlation, change a score, or prove an attack path.
+See [correlation logic](CORRELATION_LOGIC.md#opt-in-finding-specific-ai-assessment).
