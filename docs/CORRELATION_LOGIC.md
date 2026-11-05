@@ -76,7 +76,7 @@ The model is asked for `DIRECT_RELATIONSHIP_SUPPORTED`, `CONDITIONALLY_RELATED`,
 
 - `accepted` means the result passed the application's field and citation checks. A related or conditional result must cite both supplied findings. The program does not check that every claim is factually correct or that a citation supports each claim; an analyst must verify the evidence and conclusion.
 - `rejected` means the returned assessment failed local validation. Other possible statuses include `skipped_injection`, `truncated_evidence`, `refused`, `truncated`, and `invalid_json`. Injection-flagged or oversized packets are not sent to Claude. API and input errors are reported separately.
-- Results include finding IDs, the requested and, where returned, served model, evidence digest, source hashes and assessment schema version. These aid traceability but do not by themselves preserve the evidence packet or establish a fully reproducible model response.
+- Results include finding IDs, the requested and, where returned, served model when a model request is made, evidence digest, source hashes and assessment schema version. These aid traceability but do not by themselves preserve the evidence packet or establish a fully reproducible model response.
 - This is a single-pair, advisory operation. It does not create or remove correlation links, write to the database, change a rule, score or receipt, or establish lateral movement. Human review is required even for `DIRECT_RELATIONSHIP_SUPPORTED`.
 
 Source: [`correlation_assessment.py`](../src/threatweave/correlation_assessment.py), [`cli.py`](../src/threatweave/cli.py), and [`app.py`](../dashboard/app.py).
