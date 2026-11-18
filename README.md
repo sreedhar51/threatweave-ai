@@ -24,7 +24,23 @@ findings and policy rules that produced it.
 
 ![ThreatWeave AI Architecture — evidence sources, correlation, policy, and DecisionTrace](docs/architecture-diagram.svg)
 
-See [architecture details](docs/ARCHITECTURE.md) and [pitch-deck messaging](docs/PITCH_MESSAGING.md).
+See [architecture details](docs/ARCHITECTURE.md) and the [correlation logic guide](docs/CORRELATION_LOGIC.md).
+
+## Why I built this
+
+My day job includes running enterprise CIS compliance scanning on Tenable Nessus Manager and
+Security Center across Linux, Windows and workstation fleets. The scanning is the easy part.
+The hard part is the meeting afterward: vulnerability findings, CIS failures and asset
+ownership live in three different places, somebody stitches them together in a spreadsheet,
+and nobody can explain why last week's top priority dropped to number twelve.
+
+I built ThreatWeave for Tenable SWARM Global
+(November 2026) to see whether an agent could do that stitching without becoming another
+black box. That is why the design is split the way it is: a deterministic engine owns every
+score, Claude only explains and proposes, and every run leaves a receipt you can replay.
+It is also a working testbed for the agent security questions I care about: bounded tool
+use, untrusted evidence, prompt-injection handling, and an MCP server that cannot write
+anywhere.
 
 ## How it works
 
@@ -444,6 +460,19 @@ that is not a production throughput claim. See the
   Ties break deterministically on compounded, critical, and production asset counts.
 - **No measured time savings.** No hours-saved or risk-reduced figure is claimed until
   it is measured on a real analyst workflow.
+
+## What's next
+
+- Run the decision briefs and correlation proposals against the live Claude API on a
+  larger authorized dataset, and publish what holds up and what does not.
+- Smoke-test the Claude Code subagent and Claude Desktop setup end to end.
+- Replace the illustrative correlation rules with a reviewed starter set.
+- Measure analyst time on a real triage workflow before claiming any savings.
+
+## Author
+
+Built by **Sreedhar Ellisetty**, a cloud and AI security architect in Dallas, TX.
+[LinkedIn](https://www.linkedin.com/in/sreedhare456) · issues and pull requests welcome.
 
 ## License
 
